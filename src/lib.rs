@@ -2,6 +2,7 @@
 
 mod connection;
 pub mod helper_proto;
+mod probe;
 mod profile;
 mod runtime;
 mod singbox;

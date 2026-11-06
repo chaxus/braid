@@ -1,8 +1,13 @@
 //! Connection state machine — drives a [`DataPlane`] (TECH_PLAN §3.3 / §4).
 
+use crate::probe::tcp_reachable;
 use crate::profile::Profile;
 use crate::runtime::{DataPlane, FailKind, PlaneError, PlaneStatus};
 use crate::singbox::render_singbox_pretty;
+use std::time::Duration;
+
+/// How long live Connect waits for a TCP path to the server.
+const PATH_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
@@ -227,6 +232,21 @@ impl Snapshot {
                     ));
                     return;
                 }
+                // Live plane: server must accept TCP or we classify Path.
+                if !plane.is_mock()
+                    && !tcp_reachable(&profile.server, profile.port, PATH_PROBE_TIMEOUT)
+                {
+                    let _ = plane.stop();
+                    self.phase = Phase::Failed;
+                    self.fail = Some(FailReason::Path);
+                    self.fail_detail = Some(format!(
+                        "TCP {}:{} timed out or refused",
+                        profile.server, profile.port
+                    ));
+                    self.latency_ms = None;
+                    self.egress_ip = None;
+                    return;
+                }
                 self.phase = Phase::Connected;
                 self.latency_ms = if plane.is_mock() { Some(42) } else { None };
                 self.egress_ip = self.server.clone();
@@ -358,6 +378,65 @@ mod tests {
                     .unwrap_or("")
                     .contains("braid-helper")
         );
+    }
+
+    struct LiveHelperPlane {
+        up: bool,
+    }
+
+    impl DataPlane for LiveHelperPlane {
+        fn prepare(&mut self, profile: &Profile) -> Result<Prepared, PlaneError> {
+            let text = render_singbox_pretty(profile);
+            Ok(Prepared {
+                config_path: PathBuf::from("/tmp/braid-test-config.json"),
+                config_bytes: text.len(),
+                binary_path: PathBuf::from("/tmp/braid-test-sing-box"),
+            })
+        }
+
+        fn start(&mut self, _prepared: &Prepared) -> Result<(), PlaneError> {
+            self.up = true;
+            Ok(())
+        }
+
+        fn stop(&mut self) -> Result<(), PlaneError> {
+            self.up = false;
+            Ok(())
+        }
+
+        fn poll(&mut self) -> PlaneStatus {
+            if self.up {
+                PlaneStatus::Up
+            } else {
+                PlaneStatus::Idle
+            }
+        }
+
+        fn is_mock(&self) -> bool {
+            false
+        }
+
+        fn via_helper(&self) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn live_unreachable_server_is_path() {
+        let mut s = Snapshot::default();
+        s.load_demo_profile();
+        // Force a closed local port so the probe fails without depending on WAN.
+        if let Some(p) = s.profile.as_mut() {
+            p.server = "127.0.0.1".into();
+            p.port = 1;
+        }
+        s.server = Some("127.0.0.1".into());
+        let mut plane = LiveHelperPlane { up: false };
+        s.connect_with(&mut plane);
+        assert_eq!(s.phase, Phase::Failed);
+        assert_eq!(s.fail, Some(FailReason::Path));
+        assert!(!plane.up);
+        assert!(s.fail_copy().unwrap().contains("Path to the server"));
     }
 
     #[test]
