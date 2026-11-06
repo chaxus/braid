@@ -93,7 +93,8 @@
 | 级别 | 代号 | 做法 | 用户体验 | 何时算「真 TUN 可用」 |
 |---|---|---|---|---|
 | A | **P3a** | App 管理配置与二进制；尝试拉起 sing-box；无权限则 **Failed(Permission)**，文案诚实 | 开发者可用 `sudo`/helper 试验 | 仅当进程存活 **且** 路由/接口证据表明 TUN 生效 |
-| B | **P3b** | **Privileged Helper（LaunchDaemon + socket）**；NE 推迟 | 接近 Clash Verge | helper 下 TUN 证据齐全即算门槛 |
+| B | **P3b** | Privileged Helper（LaunchDaemon） | 接近 Clash Verge | helper 下 TUN 证据齐全 |
+| B′ | **P3b-NE** | **Packet Tunnel NE**（优先）+ helper 回退 | 系统 VPN 批准 | NE 或 helper 任一可信 TUN |
 | C | **P3c** | 公证、稳定安装器、菜单栏 Status Item | 可分发 | 可选 |
 
 **偏移警告**：只把 sing-box 进程拉起来、TUN 实际失败却显示 Connected → **视为缺陷**，不是可接受的中间态。
@@ -276,7 +277,8 @@ trait DataPlane {
 | P1 | NSH 面板 + 状态机 UI（mock） | 完成 |
 | P2 | Profile + sing-box 渲染 + demo 导入 | 完成 |
 | P3a | DataPlane / 启停 / 诚实 Permission | 完成（默认 mock；`BRAID_LIVE=1` 真平面） |
-| P3b | Privileged Helper（LaunchDaemon） | **主路径已落地**；NE 推迟 |
+| P3b | Privileged Helper（LaunchDaemon） | **已落地**（回退路径） |
+| P3b-NE | Packet Tunnel + App Group | **进行中**（见 [SCOPE_LOCK_NE.md](SCOPE_LOCK_NE.md)） |
 | P3 usable | 本机 Profile + Connected 门槛 + TCP Path | **已完成**（见 [SCOPE_LOCK_P3_usable.md](SCOPE_LOCK_P3_usable.md)） |
 | P4 core + P3c lite | 诊断/延迟/掉线 + `nsh package` | **macOS MVP 收口完成**（见 [SCOPE_LOCK_macos_mvp.md](SCOPE_LOCK_macos_mvp.md)） |
 
@@ -418,11 +420,12 @@ trait DataPlane {
 | sing-box 渲染 | `src/singbox.rs` | 已有 |
 | 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有；主面板 connect-first（见 [SCOPE_LOCK_ui_polish.md](SCOPE_LOCK_ui_polish.md)） |
 | DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
-| Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 推迟） |
+| Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 回退） |
+| Network Extension | `macos/BraidTunnel/`, `src/ne_plane.rs` | **P3b-NE 切片** |
 | 本机 Profile / Connected 门槛 / Path TCP | `src/profile.rs`, `src/connection.rs`, `src/probe.rs` | **P3 usable 已实现** |
 | 诊断 / 延迟 / tick | `src/probe.rs`, `src/connection.rs`, UI | **P4 核心已实现** |
 | ad-hoc 打包 | `scripts/package.sh` | **P3c lite 已实现** |
-| NE / 公证 / Status Item / P5 | — | **未做** |
+| 公证 / Status Item / P5 | — | **未做** |
 
 实现新功能前：更新本表与对应阶段验收；若改 D1–D6，先改 §12 再写代码。
 
@@ -438,14 +441,13 @@ trait DataPlane {
 | 2026-11-06 | P3 usable：本机 Profile、live Connected 需 helper、TCP Path 探测 |
 | 2026-11-06 | macOS MVP 收口：P4 诊断/RTT/tick + P3c lite package；排除 NE/公证/Status Item/P5 |
 | 2026-11-06 | UI polish：品牌+Connect 主路径、More 次级、theme.json 青石强调色 |
+| 2026-11-06 | P3b-NE：Packet Tunnel 骨架；NE 优先、helper 回退；需 Xcode Team 签名 |
 
 ---
 
 ## 15. 下一步（实现入口）
 
-**macOS 个人客户端 MVP 代码侧已收口。** 余下：
+1. 本机用 helper **或** 签名后的 NE 跑 §9 手工 TUN  
+2. 另开：公证、NSStatusItem、P5、Degraded/双链路  
 
-1. 本机 §9 手工 TUN（真实 Profile + helper）  
-2. 另开切片：NE、公证、NSStatusItem（待 NSH API）、P5、Degraded/双链路  
-
-未装 helper 时，对外描述须保留「需安装 helper」类限定语。
+未装 helper 且未批准 VPN 时，对外描述须保留权限限定语。
