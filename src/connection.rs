@@ -1,6 +1,6 @@
 //! Connection state machine — drives a [`DataPlane`] (TECH_PLAN §3.3 / §4).
 
-use crate::probe::tcp_reachable;
+use crate::probe::{classify_path, PathClass};
 use crate::profile::Profile;
 use crate::runtime::{DataPlane, FailKind, PlaneError, PlaneStatus};
 use crate::singbox::render_singbox_pretty;
@@ -24,6 +24,8 @@ pub enum FailReason {
     Mock,
     Permission,
     Path,
+    /// Local network probe failed (do not blame the VPS).
+    Local,
     Server,
     Process,
 }
@@ -140,6 +142,7 @@ impl Snapshot {
             FailReason::Path => {
                 "Path to the server is down (local network looks fine).".to_owned()
             }
+            FailReason::Local => "Local network looks down.".to_owned(),
             FailReason::Server => "Server looks unhealthy.".to_owned(),
             FailReason::Process => "Could not start or keep the core process running.".to_owned(),
         };
@@ -232,20 +235,34 @@ impl Snapshot {
                     ));
                     return;
                 }
-                // Live plane: server must accept TCP or we classify Path.
-                if !plane.is_mock()
-                    && !tcp_reachable(&profile.server, profile.port, PATH_PROBE_TIMEOUT)
-                {
-                    let _ = plane.stop();
-                    self.phase = Phase::Failed;
-                    self.fail = Some(FailReason::Path);
-                    self.fail_detail = Some(format!(
-                        "TCP {}:{} timed out or refused",
-                        profile.server, profile.port
-                    ));
-                    self.latency_ms = None;
-                    self.egress_ip = None;
-                    return;
+                // Live plane: classify local vs path before claiming Connected.
+                if !plane.is_mock() {
+                    match classify_path(&profile.server, profile.port, PATH_PROBE_TIMEOUT) {
+                        PathClass::Ok => {}
+                        PathClass::Path => {
+                            let _ = plane.stop();
+                            self.phase = Phase::Failed;
+                            self.fail = Some(FailReason::Path);
+                            self.fail_detail = Some(format!(
+                                "TCP {}:{} timed out or refused",
+                                profile.server, profile.port
+                            ));
+                            self.latency_ms = None;
+                            self.egress_ip = None;
+                            return;
+                        }
+                        PathClass::LocalDown => {
+                            let _ = plane.stop();
+                            self.phase = Phase::Failed;
+                            self.fail = Some(FailReason::Local);
+                            self.fail_detail = Some(
+                                "local probe (223.5.5.5:53) failed".into(),
+                            );
+                            self.latency_ms = None;
+                            self.egress_ip = None;
+                            return;
+                        }
+                    }
                 }
                 self.phase = Phase::Connected;
                 self.latency_ms = if plane.is_mock() { Some(42) } else { None };
@@ -422,10 +439,10 @@ mod tests {
     }
 
     #[test]
-    fn live_unreachable_server_is_path() {
+    fn live_unreachable_server_is_path_or_local() {
         let mut s = Snapshot::default();
         s.load_demo_profile();
-        // Force a closed local port so the probe fails without depending on WAN.
+        // Force a closed local port so the remote probe fails without WAN to the VPS.
         if let Some(p) = s.profile.as_mut() {
             p.server = "127.0.0.1".into();
             p.port = 1;
@@ -434,9 +451,12 @@ mod tests {
         let mut plane = LiveHelperPlane { up: false };
         s.connect_with(&mut plane);
         assert_eq!(s.phase, Phase::Failed);
-        assert_eq!(s.fail, Some(FailReason::Path));
+        // Path if domestic DNS answers; Local if the whole machine is offline.
+        assert!(matches!(
+            s.fail,
+            Some(FailReason::Path) | Some(FailReason::Local)
+        ));
         assert!(!plane.up);
-        assert!(s.fail_copy().unwrap().contains("Path to the server"));
     }
 
     #[test]
@@ -445,6 +465,14 @@ mod tests {
         s.simulate_path_failure();
         assert_eq!(s.phase, Phase::Failed);
         assert!(s.fail_copy().unwrap().contains("Path to the server"));
+    }
+
+    #[test]
+    fn local_failure_copy() {
+        let mut s = Snapshot::default();
+        s.phase = Phase::Failed;
+        s.fail = Some(FailReason::Local);
+        assert!(s.fail_copy().unwrap().contains("Local network"));
     }
 
     #[test]
