@@ -277,6 +277,7 @@ trait DataPlane {
 | P2 | Profile + sing-box 渲染 + demo 导入 | 完成 |
 | P3a | DataPlane / 启停 / 诚实 Permission | 完成（默认 mock；`BRAID_LIVE=1` 真平面） |
 | P3b | Privileged Helper（LaunchDaemon） | **主路径已落地**；NE 推迟 |
+| P3 usable | 本机 Profile + Connected 门槛 + TCP Path | **已完成**（见 [SCOPE_LOCK_P3_usable.md](SCOPE_LOCK_P3_usable.md)） |
 
 ### P3a — 进程面与诚实失败（已完成）
 
@@ -306,6 +307,18 @@ trait DataPlane {
 - 已装 helper（手工）：Connect 经 socket 由 root 跑 sing-box  
 
 后续（P3c / 另开切片）：首次引导 UI、签名公证、NE 作为长期替代。
+
+### P3 usable — 真机可用桥接（已完成）
+
+**目标**：在 helper 已有的前提下，能加载真实 Profile，且 live Connected 诚实（helper + Path TCP）。
+
+交付：
+
+- `…/Braid/profile.json` 或 `BRAID_PROFILE` 加载；UI「Load saved profile」  
+- live：无 helper → Failed(Permission)；有 helper 后 TCP 失败 → Failed(Path)  
+- `src/probe.rs` 最小探测  
+
+不包含：菜单栏、公证、完整诊断 UI（P3c / P4）。
 
 ### P3c — 分发与菜单栏
 
@@ -401,7 +414,8 @@ trait DataPlane {
 | 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有（仍为 mock 连接） |
 | DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
 | Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 推迟） |
-| 诊断 | — | P4 |
+| 本机 Profile / Connected 门槛 / Path TCP | `src/profile.rs`, `src/connection.rs`, `src/probe.rs` | **P3 usable 已实现** |
+| 诊断 | `src/probe.rs`（仅 TCP） | P4 其余未做 |
 
 实现新功能前：更新本表与对应阶段验收；若改 D1–D6，先改 §12 再写代码。
 
@@ -414,11 +428,12 @@ trait DataPlane {
 | 2026-11-06 | 初版：架构、契约、P3a/b 切片、红线、验收与决策表 |
 | 2026-11-06 | 许可证改为 Apache-2.0；仓库公开；P3a DataPlane 落地 |
 | 2026-11-06 | P3b：锁定 LaunchDaemon helper（非 NE）；协议/二进制/安装脚本/plane 优先 socket |
+| 2026-11-06 | P3 usable：本机 Profile、live Connected 需 helper、TCP Path 探测 |
 
 ---
 
 ## 15. 下一步（实现入口）
 
-P3b helper 已落地后：手工装 helper 做 TUN 验收 → P3c 分发/菜单栏，或 P4 诊断。NE 另开 Scope Lock，不得与本切片混做。
+P3 usable 已完成后：本机装 helper + 真实 `profile.json` 跑 TECH_PLAN §9 手工 TUN 验收 → 再开 **P3c**（分发/菜单栏）或 **P4**（完诊断/双链路）。NE 另开 Scope Lock。
 
 未装 helper 时，对外描述须保留「需安装 helper」类限定语。

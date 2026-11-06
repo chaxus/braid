@@ -13,7 +13,7 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Status
 
-**P3b (current):** Privileged helper (`braid-helper` LaunchDaemon) can run sing-box as root for TUN. Default UI still uses a **mock plane** so tests stay offline. Live plane: `BRAID_LIVE=1`. Network Extension is deferred — see the tech plan.
+**P3 usable (current):** Load a real profile from disk, require `braid-helper` for live Connected, and classify unreachable servers as Path. Default UI still uses a **mock plane**. Live: `BRAID_LIVE=1`. Network Extension / notarization deferred — see the tech plan.
 
 | Phase | Deliverable |
 |---|---|
@@ -21,9 +21,12 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 | P2 | Profile import + sing-box config generation |
 | P3a | sing-box process lifecycle + honest Permission failures |
 | P3b | macOS LaunchDaemon helper (real TUN after one `sudo` install) |
-| P4 | Diagnostics copy, dual-link polish |
+| P3 usable | Saved profile path, Connected helper gate, TCP Path probe |
+| P4 | Fuller diagnostics, dual-link polish |
 
 Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
+
+**Real profile (do not commit):** copy JSON to `~/Library/Application Support/Braid/profile.json`, or set `BRAID_PROFILE=/path/to.json`, then use **Load saved profile** in the UI.
 
 ## Requirements
 
@@ -45,6 +48,10 @@ BRAID_LIVE=1 nsh run --target macos
 
 # One-time: install privileged helper so TUN works without per-connect sudo
 ./scripts/install-helper.sh
+
+# Put your profile in place (never commit real credentials)
+mkdir -p "$HOME/Library/Application Support/Braid"
+cp /path/to/your.profile.json "$HOME/Library/Application Support/Braid/profile.json"
 ```
 
 Optional: `BRAID_SINGBOX=/path/to/sing-box` to skip download. Uninstall helper: `./scripts/uninstall-helper.sh`.
