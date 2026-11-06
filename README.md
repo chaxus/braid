@@ -13,14 +13,14 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Status
 
-**P3a (current):** DataPlane + sing-box prepare/start/stop. Default UI uses a **mock plane** so tests stay offline. Real process plane: `BRAID_LIVE=1`. Reliable TUN for end users still needs **P3b** (Network Extension / privileged helper) — see the tech plan.
+**P3b (current):** Privileged helper (`braid-helper` LaunchDaemon) can run sing-box as root for TUN. Default UI still uses a **mock plane** so tests stay offline. Live plane: `BRAID_LIVE=1`. Network Extension is deferred — see the tech plan.
 
 | Phase | Deliverable |
 |---|---|
 | P1 | NSH shell, connect UI, mock state |
 | P2 | Profile import + sing-box config generation |
 | P3a | sing-box process lifecycle + honest Permission failures |
-| P3b | macOS NE / helper (real TUN for normal users) |
+| P3b | macOS LaunchDaemon helper (real TUN after one `sudo` install) |
 | P4 | Diagnostics copy, dual-link polish |
 
 Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
@@ -40,11 +40,14 @@ cd braid
 # UI with mock plane (default — no download)
 nsh run --target macos
 
-# Attempt real sing-box (downloads pinned binary on first prepare; TUN often needs elevation)
+# Attempt real sing-box (downloads pinned binary on first prepare)
 BRAID_LIVE=1 nsh run --target macos
+
+# One-time: install privileged helper so TUN works without per-connect sudo
+./scripts/install-helper.sh
 ```
 
-Optional: `BRAID_SINGBOX=/path/to/sing-box` to skip download.
+Optional: `BRAID_SINGBOX=/path/to/sing-box` to skip download. Uninstall helper: `./scripts/uninstall-helper.sh`.
 
 ## Test
 

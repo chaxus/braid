@@ -210,6 +210,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "hex",
+ "log",
  "nsh-base",
  "nsh-core",
  "nsh-platform-linux",

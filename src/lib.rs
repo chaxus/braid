@@ -1,6 +1,7 @@
-//! Braid — TUN-first proxy client (P3a: DataPlane + honest failures).
+//! Braid — TUN-first proxy client (P3b: privileged helper + DataPlane).
 
 mod connection;
+pub mod helper_proto;
 mod profile;
 mod runtime;
 mod singbox;
@@ -32,7 +33,11 @@ pub fn App() -> impl IntoElement {
     let plane = make_plane();
     let snap = signal({
         let mut s = Snapshot::default();
-        s.set_mock_plane(use_mock_plane());
+        let mock = use_mock_plane();
+        s.set_mock_plane(mock);
+        if !mock {
+            s.set_helper_online(SingBoxPlane::helper_reachable());
+        }
         s
     });
 

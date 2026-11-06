@@ -93,7 +93,7 @@
 | 级别 | 代号 | 做法 | 用户体验 | 何时算「真 TUN 可用」 |
 |---|---|---|---|---|
 | A | **P3a** | App 管理配置与二进制；尝试拉起 sing-box；无权限则 **Failed(Permission)**，文案诚实 | 开发者可用 `sudo`/helper 试验 | 仅当进程存活 **且** 路由/接口证据表明 TUN 生效 |
-| B | **P3b** | Privileged Helper 或 Network Extension；UI 走 XPC/NE API | 接近 Clash Verge | 作为正式替代门槛 |
+| B | **P3b** | **Privileged Helper（LaunchDaemon + socket）**；NE 推迟 | 接近 Clash Verge | helper 下 TUN 证据齐全即算门槛 |
 | C | **P3c** | 公证、稳定安装器、菜单栏 Status Item | 可分发 | 可选 |
 
 **偏移警告**：只把 sing-box 进程拉起来、TUN 实际失败却显示 Connected → **视为缺陷**，不是可接受的中间态。
@@ -276,39 +276,36 @@ trait DataPlane {
 | P1 | NSH 面板 + 状态机 UI（mock） | 完成 |
 | P2 | Profile + sing-box 渲染 + demo 导入 | 完成 |
 | P3a | DataPlane / 启停 / 诚实 Permission | 完成（默认 mock；`BRAID_LIVE=1` 真平面） |
+| P3b | Privileged Helper（LaunchDaemon） | **主路径已落地**；NE 推迟 |
 
-### P3a — 进程面与诚实失败（下一步实现）
+### P3a — 进程面与诚实失败（已完成）
 
 **目标**：具备「像真客户端一样」的启停与配置落盘；TUN 无权限时 **明确失败**，不为了演示假 Connected。
 
+交付：`DataPlane` + `SingBoxPlane` + `MockPlane`、钉扎下载、`prepare`/`start`/`stop`/`poll`、UI 接真平面（测试仍 mock）。
+
+### P3b — Privileged Helper（当前主路径；NE 推迟）
+
+**目标**：一次 `sudo` 安装 helper 后，普通用户账号下 Connect 可拉起 root 侧 sing-box TUN。
+
+**已锁定主路径**：LaunchDaemon + Unix socket（`/var/run/braid-helper.sock`），见 [SCOPE_LOCK_P3b.md](SCOPE_LOCK_P3b.md)。Network Extension / 公证 / App Store **不在本切片**。
+
 交付：
 
-- `DataPlane` + `SingBoxPlane` + `MockPlane`
-- Application Support 目录约定
-- 钉扎下载与 SHA256
-- `prepare`：`sing-box check -c config.json`
-- `start`/`stop`/`poll`
-- UI 接真平面（测试仍 mock）
-- 文档：如何用 helper/sudo 做开发期真 TUN 试验（不作为最终产品方案）
+- `helper_proto` JSON 行协议 + 路径白名单  
+- `braid-helper` 二进制（root 启停 sing-box）  
+- `scripts/install-helper.sh` / `uninstall-helper.sh` + LaunchDaemon plist  
+- `SingBoxPlane`：socket 可达则走 helper，否则回退本地 spawn 并诚实 Permission  
+- UI / footer 提示安装 helper  
 
 验收：
 
-- Mock 下 `nsh test` 全绿  
-- 无权限机器上 Connect → Failed(Permission) 或等价文案，**不**显示稳定 Connected  
-- 有权限环境（开发者自备）可手工验证 TUN（清单见 §9）
+- Protocol / allowlist 单测；`cargo build --bin braid-helper`  
+- `nsh test`（mock）全绿  
+- 未装 helper：Permission 文案含 install 路径  
+- 已装 helper（手工）：Connect 经 socket 由 root 跑 sing-box  
 
-### P3b — 真 TUN 产品化（正式替代 Clash 的门槛）
-
-**目标**：终端用户无需手搓 sudo。
-
-交付（择一主路径，文档立项时二选一写死）：
-
-- **推荐主路径**：macOS Network Extension（Packet Tunnel）+ 内嵌或旁路 sing-box；或  
-- **备选**：SMJobBless / 安装型 Privileged Helper，专责跑 sing-box TUN  
-
-另需：首次权限引导页、卸载清理、升级时 helper/NE 兼容。
-
-验收：普通用户账号下 Connect → TUN 通；断网分类可用；Disconnect 无残留默认路由。
+后续（P3c / 另开切片）：首次引导 UI、签名公证、NE 作为长期替代。
 
 ### P3c — 分发与菜单栏
 
@@ -403,7 +400,7 @@ trait DataPlane {
 | sing-box 渲染 | `src/singbox.rs` | 已有 |
 | 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有（仍为 mock 连接） |
 | DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
-| NE / Helper | — | **未做 → P3b** |
+| Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 推迟） |
 | 诊断 | — | P4 |
 
 实现新功能前：更新本表与对应阶段验收；若改 D1–D6，先改 §12 再写代码。
@@ -416,11 +413,12 @@ trait DataPlane {
 |---|---|
 | 2026-11-06 | 初版：架构、契约、P3a/b 切片、红线、验收与决策表 |
 | 2026-11-06 | 许可证改为 Apache-2.0；仓库公开；P3a DataPlane 落地 |
+| 2026-11-06 | P3b：锁定 LaunchDaemon helper（非 NE）；协议/二进制/安装脚本/plane 优先 socket |
 
 ---
 
 ## 15. 下一步（实现入口）
 
-在本文件评审确认后，**仅开启 P3a**，并另写/更新 `SCOPE_LOCK_P3.md` 与之对齐（可改文件列表以 Scope Lock 为准，语义以本文件为准）。
+P3b helper 已落地后：手工装 helper 做 TUN 验收 → P3c 分发/菜单栏，或 P4 诊断。NE 另开 Scope Lock，不得与本切片混做。
 
-P3a 完成前，不得在对外描述中删除「TUN 尚未在无提升权限环境下可用」之类限定语。
+未装 helper 时，对外描述须保留「需安装 helper」类限定语。

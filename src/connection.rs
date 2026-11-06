@@ -33,6 +33,8 @@ pub struct Snapshot {
     pub egress_ip: Option<String>,
     /// True when the active DataPlane is mock (tests / default without BRAID_LIVE).
     pub mock_plane: bool,
+    /// True when braid-helper answered ping at UI start (live plane only).
+    pub helper_online: bool,
     pub profile_loaded: bool,
     pub config_bytes: usize,
     pub server: Option<String>,
@@ -49,6 +51,7 @@ impl Default for Snapshot {
             latency_ms: None,
             egress_ip: None,
             mock_plane: true,
+            helper_online: false,
             profile_loaded: false,
             config_bytes: 0,
             server: None,
@@ -102,13 +105,23 @@ impl Snapshot {
         }
     }
 
+    pub fn set_helper_online(&mut self, online: bool) {
+        self.helper_online = online;
+    }
+
     pub fn footer_line(&self) -> String {
         if self.mock_plane {
             "TUN · mock plane (set BRAID_LIVE=1 for real sing-box)".to_owned()
+        } else if self.helper_online {
+            if self.phase == Phase::Connected {
+                "TUN · via braid-helper".to_owned()
+            } else {
+                "TUN · braid-helper online".to_owned()
+            }
         } else if self.phase == Phase::Connected {
-            "TUN · process up (P3a; NE/helper still required for reliable TUN)".to_owned()
+            "TUN · live (no helper — TUN may lack privileges)".to_owned()
         } else {
-            "TUN · live plane (P3a)".to_owned()
+            "TUN · live · helper: sudo ./scripts/install-helper.sh".to_owned()
         }
     }
 
@@ -117,7 +130,7 @@ impl Snapshot {
         let base = match reason {
             FailReason::Mock => "Simulated failure.".to_owned(),
             FailReason::Permission => {
-                "TUN needs administrator rights or a Network Extension (P3b).".to_owned()
+                "Install the Braid helper: sudo ./scripts/install-helper.sh".to_owned()
             }
             FailReason::Path => {
                 "Path to the server is down (local network looks fine).".to_owned()

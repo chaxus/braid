@@ -1,8 +1,13 @@
-//! Data plane: prepare / start / stop sing-box (P3a).
+//! Data plane: prepare / start / stop sing-box (P3b helper-aware).
 //!
 //! TUN without elevation typically fails on macOS — that must surface as
 //! [`PlaneError::Permission`], never as a fake Connected state (TECH_PLAN §2.3).
+//! When `braid-helper` is installed, start/stop go through the Unix socket.
 
+#[cfg(unix)]
+use crate::helper_proto::{HelperRequest, HelperResponse, HELPER_SOCKET_PATH};
+#[cfg(not(unix))]
+use crate::helper_proto::HELPER_SOCKET_PATH;
 use crate::profile::Profile;
 use crate::singbox::render_singbox_pretty;
 use sha2::{Digest, Sha256};
@@ -11,6 +16,11 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
+
+#[cfg(unix)]
+use std::io::{BufRead, BufReader};
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 
 pub const SINGBOX_VERSION: &str = "1.14.4";
 
@@ -126,7 +136,10 @@ impl DataPlane for MockPlane {
 }
 
 pub struct SingBoxPlane {
+    /// Local (non-helper) child, if any.
     child: Option<Child>,
+    /// True when the last successful start went through braid-helper.
+    via_helper: bool,
     root: PathBuf,
 }
 
@@ -140,7 +153,19 @@ impl SingBoxPlane {
     pub fn new() -> Self {
         Self {
             child: None,
+            via_helper: false,
             root: braid_data_dir(),
+        }
+    }
+
+    pub fn helper_reachable() -> bool {
+        #[cfg(unix)]
+        {
+            return helper_rpc(&HelperRequest::ping()).is_ok_and(|r| r.ok);
+        }
+        #[cfg(not(unix))]
+        {
+            false
         }
     }
 
@@ -229,6 +254,36 @@ impl SingBoxPlane {
         let msg = format!("{stderr}{stdout}");
         Err(classify_spawn_output(&msg).unwrap_or_else(|| PlaneError::Config(msg.trim().into())))
     }
+
+    #[cfg(unix)]
+    fn start_via_helper(&mut self, prepared: &Prepared) -> Result<(), PlaneError> {
+        let req = HelperRequest::start(
+            prepared.config_path.to_string_lossy(),
+            prepared.binary_path.to_string_lossy(),
+        );
+        let resp = helper_rpc(&req).map_err(|e| {
+            PlaneError::Permission(permission_hint(&format!(
+                "helper socket present but RPC failed: {e}"
+            )))
+        })?;
+        if !resp.ok {
+            let detail = resp.error.unwrap_or_else(|| "helper start failed".into());
+            if resp.permission == Some(true) || looks_like_permission(&detail) {
+                return Err(PlaneError::Permission(permission_hint(&detail)));
+            }
+            return Err(PlaneError::Process(detail));
+        }
+        self.via_helper = true;
+        self.child = None;
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    fn start_via_helper(&mut self, _prepared: &Prepared) -> Result<(), PlaneError> {
+        Err(PlaneError::Permission(permission_hint(
+            "privileged helper is macOS/Linux only in P3b.",
+        )))
+    }
 }
 
 impl DataPlane for SingBoxPlane {
@@ -248,6 +303,12 @@ impl DataPlane for SingBoxPlane {
 
     fn start(&mut self, prepared: &Prepared) -> Result<(), PlaneError> {
         let _ = self.stop();
+
+        // Prefer privileged helper when the LaunchDaemon socket answers.
+        if helper_socket_present() {
+            return self.start_via_helper(prepared);
+        }
+
         let log = fs::File::create(self.log_path()).map_err(|e| PlaneError::Io(e.to_string()))?;
         let log_err = log
             .try_clone()
@@ -273,23 +334,32 @@ impl DataPlane for SingBoxPlane {
             Err(e) => return Err(PlaneError::Process(e.to_string())),
         }
 
-        // P3a: without NE/helper we cannot prove TUN is up. If the process
-        // survives, still treat missing elevation as permission when logs say so.
+        // Without helper we cannot prove TUN is up. If the process survives,
+        // still treat missing elevation as permission when logs say so.
         let log_tail = read_tail(&self.log_path(), 8_000).unwrap_or_default();
         if looks_like_permission(&log_tail) {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(PlaneError::Permission(
-                "TUN needs administrator rights or a Network Extension (P3b). sing-box reported a permission error."
-                    .into(),
-            ));
+            return Err(PlaneError::Permission(permission_hint(
+                "sing-box reported a permission error.",
+            )));
         }
 
         self.child = Some(child);
+        self.via_helper = false;
         Ok(())
     }
 
     fn stop(&mut self) -> Result<(), PlaneError> {
+        #[cfg(unix)]
+        if self.via_helper || helper_socket_present() {
+            let _ = helper_rpc(&HelperRequest::stop());
+            self.via_helper = false;
+        }
+        #[cfg(not(unix))]
+        {
+            self.via_helper = false;
+        }
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
             let _ = child.wait();
@@ -298,6 +368,21 @@ impl DataPlane for SingBoxPlane {
     }
 
     fn poll(&mut self) -> PlaneStatus {
+        #[cfg(unix)]
+        if self.via_helper {
+            match helper_rpc(&HelperRequest::status()) {
+                Ok(r) if r.ok && r.running == Some(true) => return PlaneStatus::Up,
+                _ => {
+                    self.via_helper = false;
+                    return PlaneStatus::Idle;
+                }
+            }
+        }
+        #[cfg(not(unix))]
+        if self.via_helper {
+            self.via_helper = false;
+            return PlaneStatus::Idle;
+        }
         let Some(child) = self.child.as_mut() else {
             return PlaneStatus::Idle;
         };
@@ -428,14 +513,54 @@ fn looks_like_permission(text: &str) -> bool {
         || lower.contains("net_admin")
 }
 
+fn permission_hint(extra: &str) -> String {
+    let base = "TUN needs the Braid helper (sudo ./scripts/install-helper.sh) or a Network Extension.";
+    if extra.is_empty() {
+        base.into()
+    } else {
+        format!("{base} {extra}")
+    }
+}
+
 fn classify_spawn_output(text: &str) -> Option<PlaneError> {
     if looks_like_permission(text) {
-        Some(PlaneError::Permission(
-            "TUN needs administrator rights or a Network Extension (P3b).".into(),
-        ))
+        Some(PlaneError::Permission(permission_hint("")))
     } else {
         None
     }
+}
+
+fn helper_socket_present() -> bool {
+    #[cfg(unix)]
+    {
+        Path::new(HELPER_SOCKET_PATH).exists()
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+#[cfg(unix)]
+fn helper_rpc(req: &HelperRequest) -> Result<HelperResponse, String> {
+    let stream = UnixStream::connect(HELPER_SOCKET_PATH).map_err(|e| e.to_string())?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .map_err(|e| e.to_string())?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|e| e.to_string())?;
+    let mut writer = stream.try_clone().map_err(|e| e.to_string())?;
+    let line = req.to_line()? + "\n";
+    writer
+        .write_all(line.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let mut reader = BufReader::new(stream);
+    let mut resp_line = String::new();
+    reader
+        .read_line(&mut resp_line)
+        .map_err(|e| e.to_string())?;
+    HelperResponse::from_line(&resp_line)
 }
 
 #[cfg(test)]
