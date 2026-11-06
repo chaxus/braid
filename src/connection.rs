@@ -219,6 +219,14 @@ impl Snapshot {
                     let _ = plane.stop();
                     return;
                 }
+                // Live plane: TUN needs the privileged helper — do not sit in Connected.
+                if !plane.is_mock() && !plane.via_helper() {
+                    let _ = plane.stop();
+                    self.apply_plane_error(PlaneError::Permission(
+                        "sing-box started without braid-helper; TUN is not trusted.".into(),
+                    ));
+                    return;
+                }
                 self.phase = Phase::Connected;
                 self.latency_ms = if plane.is_mock() { Some(42) } else { None };
                 self.egress_ip = self.server.clone();
@@ -271,7 +279,50 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::MockPlane;
+    use crate::runtime::{MockPlane, Prepared};
+    use std::path::PathBuf;
+
+    /// Live-looking plane that starts without helper (Connected must be refused).
+    struct LiveNoHelperPlane {
+        up: bool,
+    }
+
+    impl DataPlane for LiveNoHelperPlane {
+        fn prepare(&mut self, profile: &Profile) -> Result<Prepared, PlaneError> {
+            let text = render_singbox_pretty(profile);
+            Ok(Prepared {
+                config_path: PathBuf::from("/tmp/braid-test-config.json"),
+                config_bytes: text.len(),
+                binary_path: PathBuf::from("/tmp/braid-test-sing-box"),
+            })
+        }
+
+        fn start(&mut self, _prepared: &Prepared) -> Result<(), PlaneError> {
+            self.up = true;
+            Ok(())
+        }
+
+        fn stop(&mut self) -> Result<(), PlaneError> {
+            self.up = false;
+            Ok(())
+        }
+
+        fn poll(&mut self) -> PlaneStatus {
+            if self.up {
+                PlaneStatus::Up
+            } else {
+                PlaneStatus::Idle
+            }
+        }
+
+        fn is_mock(&self) -> bool {
+            false
+        }
+
+        fn via_helper(&self) -> bool {
+            false
+        }
+    }
 
     #[test]
     fn connect_requires_profile() {
@@ -287,6 +338,26 @@ mod tests {
         assert_eq!(s.egress_ip.as_deref(), Some("203.0.113.10"));
         s.toggle_primary(&mut plane);
         assert_eq!(s.phase, Phase::Idle);
+    }
+
+    #[test]
+    fn live_without_helper_is_permission() {
+        let mut s = Snapshot::default();
+        s.load_demo_profile();
+        let mut plane = LiveNoHelperPlane { up: false };
+        s.connect_with(&mut plane);
+        assert_eq!(s.phase, Phase::Failed);
+        assert_eq!(s.fail, Some(FailReason::Permission));
+        assert!(!plane.up);
+        assert!(
+            s.fail_copy()
+                .unwrap()
+                .contains("install-helper")
+                || s.fail_detail
+                    .as_deref()
+                    .unwrap_or("")
+                    .contains("braid-helper")
+        );
     }
 
     #[test]

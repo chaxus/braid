@@ -94,6 +94,10 @@ pub trait DataPlane {
     fn stop(&mut self) -> Result<(), PlaneError>;
     fn poll(&mut self) -> PlaneStatus;
     fn is_mock(&self) -> bool;
+    /// True when the last successful `start` went through braid-helper.
+    fn via_helper(&self) -> bool {
+        false
+    }
 }
 
 /// Default for tests / `nsh test`: no download, no spawn.
@@ -397,6 +401,10 @@ impl DataPlane for SingBoxPlane {
 
     fn is_mock(&self) -> bool {
         false
+    }
+
+    fn via_helper(&self) -> bool {
+        self.via_helper
     }
 }
 
