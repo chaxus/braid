@@ -74,7 +74,7 @@ Import sources later: paste JSON, file, or deep link. v0.1 can use a fixture pro
 
 - `nsh run --target macos` launches the app
 - User can toggle mock Connect / Disconnect and see status + summary update
-- No secrets in git; MIT LICENSE present
+- No secrets in git; Apache-2.0 LICENSE present
 
 ## Acceptance (P2)
 

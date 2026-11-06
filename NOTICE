@@ -1,0 +1,9 @@
+Braid
+Copyright 2026 chaxus
+
+This product includes software developed at / by contributors to the Braid project.
+
+This product may download and run the sing-box binary from the SagerNet/sing-box
+project at runtime. sing-box is licensed separately (GPL-3.0 with additional
+terms / exceptions as published upstream). Braid itself does not redistribute
+that binary in this source repository.

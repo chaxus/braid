@@ -1,12 +1,16 @@
-//! Braid — TUN-first proxy client UI (P2: profile + sing-box config, mock TUN).
+//! Braid — TUN-first proxy client (P3a: DataPlane + honest failures).
 
 mod connection;
 mod profile;
+mod runtime;
 mod singbox;
 
 use connection::{Phase, Snapshot};
 use nsh_base::theme;
 use nsh_core::prelude::*;
+use runtime::{use_mock_plane, DataPlane, MockPlane, SingBoxPlane};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// What a future TSX entry may import from `braid/native`.
 #[native_module("braid/native")]
@@ -14,10 +18,23 @@ fn native(registry: &mut Registry) {
     registry.register::<App>();
 }
 
+fn make_plane() -> Rc<RefCell<Box<dyn DataPlane>>> {
+    if use_mock_plane() {
+        Rc::new(RefCell::new(Box::new(MockPlane::default())))
+    } else {
+        Rc::new(RefCell::new(Box::new(SingBoxPlane::new())))
+    }
+}
+
 /// Compact connection panel (menu-bar popover shape; real status-item comes later).
 #[component]
 pub fn App() -> impl IntoElement {
-    let snap = signal(Snapshot::default());
+    let plane = make_plane();
+    let snap = signal({
+        let mut s = Snapshot::default();
+        s.set_mock_plane(use_mock_plane());
+        s
+    });
 
     view()
         .flex_1()
@@ -32,9 +49,9 @@ pub fn App() -> impl IntoElement {
                 .child(summary(&snap))
                 .child(config_status(&snap))
                 .child(policy_row())
-                .child(primary_button(&snap))
+                .child(primary_button(&snap, &plane))
                 .child(load_demo_button(&snap))
-                .child(secondary_row(&snap))
+                .child(secondary_row(&snap, &plane))
                 .child(footer(&snap)),
         )
 }
@@ -112,9 +129,13 @@ fn policy_row() -> impl IntoElement {
         )
 }
 
-fn primary_button(snap: &Signal<Snapshot>) -> impl IntoElement {
+fn primary_button(
+    snap: &Signal<Snapshot>,
+    plane: &Rc<RefCell<Box<dyn DataPlane>>>,
+) -> impl IntoElement {
     let snap = snap.clone();
     let snap_press = snap.clone();
+    let plane = Rc::clone(plane);
     view()
         .w_full()
         .items_center()
@@ -132,7 +153,8 @@ fn primary_button(snap: &Signal<Snapshot>) -> impl IntoElement {
         .active(|s| s.opacity(0.7))
         .on_press(move || {
             if snap_press.get().primary_enabled() {
-                snap_press.update(|s| s.toggle_primary());
+                let mut plane = plane.borrow_mut();
+                snap_press.update(|s| s.toggle_primary(plane.as_mut()));
             }
         })
         .child(
@@ -163,9 +185,13 @@ fn load_demo_button(snap: &Signal<Snapshot>) -> impl IntoElement {
         )
 }
 
-fn secondary_row(snap: &Signal<Snapshot>) -> impl IntoElement {
+fn secondary_row(
+    snap: &Signal<Snapshot>,
+    plane: &Rc<RefCell<Box<dyn DataPlane>>>,
+) -> impl IntoElement {
     let snap_btn = snap.clone();
     let snap_banner = snap.clone();
+    let plane = Rc::clone(plane);
     view()
         .flex_col()
         .gap_2()
@@ -180,7 +206,11 @@ fn secondary_row(snap: &Signal<Snapshot>) -> impl IntoElement {
                 .border_1()
                 .border_color(move || theme().border)
                 .active(|s| s.opacity(0.7))
-                .on_press(move || snap_btn.update(|s| s.simulate_path_failure()))
+                .on_press(move || {
+                    let mut plane = plane.borrow_mut();
+                    let _ = plane.stop();
+                    snap_btn.update(|s| s.simulate_path_failure());
+                })
                 .child(
                     text("Simulate path failure")
                         .text_size(px(13.0))
@@ -193,7 +223,7 @@ fn secondary_row(snap: &Signal<Snapshot>) -> impl IntoElement {
 fn fail_banner(snap: &Signal<Snapshot>) -> impl IntoElement {
     let snap = snap.clone();
     view().child(
-        text(move || snap.get().fail_copy().unwrap_or("").to_owned())
+        text(move || snap.get().fail_copy().unwrap_or_default())
             .text_size(px(12.0))
             .text_color(move || theme().destructive),
     )
@@ -201,13 +231,7 @@ fn fail_banner(snap: &Signal<Snapshot>) -> impl IntoElement {
 
 fn footer(snap: &Signal<Snapshot>) -> impl IntoElement {
     let snap = snap.clone();
-    text(move || {
-        if snap.get().simulated {
-            "TUN · simulated (P2)".to_owned()
-        } else {
-            "TUN".to_owned()
-        }
-    })
-    .text_size(px(11.0))
-    .text_color(move || theme().muted_foreground)
+    text(move || snap.get().footer_line())
+        .text_size(px(11.0))
+        .text_color(move || theme().muted_foreground)
 }

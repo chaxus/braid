@@ -272,9 +272,10 @@ trait DataPlane {
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| P0 | 仓库、MIT、无密钥 | 完成 |
+| P0 | 仓库、许可证、无密钥 | 完成（Apache-2.0 + Public） |
 | P1 | NSH 面板 + 状态机 UI（mock） | 完成 |
 | P2 | Profile + sing-box 渲染 + demo 导入 | 完成 |
+| P3a | DataPlane / 启停 / 诚实 Permission | 完成（默认 mock；`BRAID_LIVE=1` 真平面） |
 
 ### P3a — 进程面与诚实失败（下一步实现）
 
@@ -364,7 +365,7 @@ trait DataPlane {
 - 崩溃日志脱敏（UUID/密码/pin）。  
 - 下载二进制校验 hash。  
 - 不引入分析 SDK（v1）。  
-- MIT 开源若将来公开：仅清洁树；演示夹具不得变真凭据。
+- 许可证：**Apache-2.0**（见 `LICENSE` / `NOTICE`）。公开仓仅清洁树；演示夹具不得变真凭据。
 
 ---
 
@@ -401,7 +402,7 @@ trait DataPlane {
 | Profile | `src/profile.rs` | 已有 |
 | sing-box 渲染 | `src/singbox.rs` | 已有 |
 | 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有（仍为 mock 连接） |
-| DataPlane / 真启停 | — | **未做 → P3a** |
+| DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
 | NE / Helper | — | **未做 → P3b** |
 | 诊断 | — | P4 |
 
@@ -414,6 +415,7 @@ trait DataPlane {
 | 日期 | 变更 |
 |---|---|
 | 2026-11-06 | 初版：架构、契约、P3a/b 切片、红线、验收与决策表 |
+| 2026-11-06 | 许可证改为 Apache-2.0；仓库公开；P3a DataPlane 落地 |
 
 ---
 

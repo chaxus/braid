@@ -1,9 +1,11 @@
 import { expect, open, test } from "nsh/test";
 
-test("loads demo profile then connects", async () => {
+test("loads demo profile then connects on mock plane", async () => {
   const app = await open(".");
   expect(app.texts()).toContain("Disconnected");
-  expect(app.texts()).toContain("TUN · simulated (P2)");
+  expect(
+    app.texts().some((t: string) => t.includes("mock plane")),
+  ).toBe(true);
   expect(app.texts()).toContain("No profile · — · —");
   await app.press("Load demo profile");
   expect(app.texts().some((t: string) => t.includes("sing-box config ready"))).toBe(
