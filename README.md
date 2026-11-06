@@ -13,7 +13,7 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Status
 
-**macOS MVP complete:** privileged helper, saved profile, honest Connected, Path/Local diagnostics, live RTT, Refresh status, ad-hoc `nsh package`. Default UI uses a **mock plane**; live: `BRAID_LIVE=1`.
+**macOS MVP complete:** privileged helper, saved profile, honest Connected, Path/Local diagnostics, live RTT, Refresh, ad-hoc `nsh package`. Main panel is **connect-first** (Braid brand + Connect; tools under More). Default UI uses a **mock plane**; live: `BRAID_LIVE=1`.
 
 Still out of scope: Network Extension, Apple notarization, menu-bar Status Item (no NSH 0.4 API), Android/iOS.
 

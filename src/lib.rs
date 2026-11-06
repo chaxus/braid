@@ -167,9 +167,9 @@ fn primary_button(
         })
         .opacity(move || {
             if snap.get().phase == Phase::Connecting || snap.get().phase == Phase::Disconnecting {
-                0.85
+                0.85_f32
             } else {
-                1.0
+                1.0_f32
             }
         })
         .active(|s| s.opacity(0.72))
@@ -212,11 +212,11 @@ fn more_section(
                 .text_color(move || theme().muted_foreground),
         )
         .child(config_status(&snap))
-        .child(quiet_button("Load saved profile", {
+        .child(quiet_button("Saved profile", {
             let snap = snap.clone();
             move || snap.update(|s| s.load_saved_profile())
         }))
-        .child(quiet_button("Load demo profile", {
+        .child(quiet_button("Demo profile", {
             let snap = snap.clone();
             move || snap.update(|s| s.load_demo_profile())
         }))
@@ -267,7 +267,7 @@ fn refresh_button(
 ) -> impl IntoElement {
     let snap = snap.clone();
     let plane = Rc::clone(plane);
-    quiet_button("Refresh status", move || {
+    quiet_button("Refresh", move || {
         let mut plane = plane.borrow_mut();
         snap.update(|s| s.tick(plane.as_mut()));
     })
@@ -279,7 +279,7 @@ fn diag_controls(snap: &Signal<Snapshot>) -> impl IntoElement {
     view()
         .flex_col()
         .gap_1()
-        .child(quiet_button("Run diagnostics", move || {
+        .child(quiet_button("Diagnose", move || {
             snap_btn.update(|s| s.run_diagnostics())
         }))
         .child(

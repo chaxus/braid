@@ -3,11 +3,12 @@ import { expect, open, test } from "nsh/test";
 test("loads demo profile then connects on mock plane", async () => {
   const app = await open(".");
   expect(app.texts()).toContain("Disconnected");
+  expect(app.texts()).toContain("Braid");
   expect(
     app.texts().some((t: string) => t.includes("mock plane")),
   ).toBe(true);
   expect(app.texts()).toContain("No profile · — · —");
-  await app.press("Load demo profile");
+  await app.press("Demo profile");
   expect(app.texts().some((t: string) => t.includes("sing-box config ready"))).toBe(
     true,
   );
@@ -32,8 +33,8 @@ test("shows path failure copy", async () => {
 
 test("run diagnostics shows mock copy", async () => {
   const app = await open(".");
-  expect(app.texts()).toContain("Run diagnostics");
-  await app.press("Run diagnostics");
+  expect(app.texts()).toContain("Diagnose");
+  await app.press("Diagnose");
   expect(
     app.texts().some((t: string) => t.includes("Local OK · path OK (mock)")),
   ).toBe(true);

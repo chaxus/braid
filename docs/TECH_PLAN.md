@@ -416,7 +416,7 @@ trait DataPlane {
 |---|---|---|
 | Profile | `src/profile.rs` | 已有 |
 | sing-box 渲染 | `src/singbox.rs` | 已有 |
-| 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有（仍为 mock 连接） |
+| 状态机 UI | `src/connection.rs`, `src/lib.rs` | 已有；主面板 connect-first（见 [SCOPE_LOCK_ui_polish.md](SCOPE_LOCK_ui_polish.md)） |
 | DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
 | Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 推迟） |
 | 本机 Profile / Connected 门槛 / Path TCP | `src/profile.rs`, `src/connection.rs`, `src/probe.rs` | **P3 usable 已实现** |
@@ -437,6 +437,7 @@ trait DataPlane {
 | 2026-11-06 | P3b：锁定 LaunchDaemon helper（非 NE）；协议/二进制/安装脚本/plane 优先 socket |
 | 2026-11-06 | P3 usable：本机 Profile、live Connected 需 helper、TCP Path 探测 |
 | 2026-11-06 | macOS MVP 收口：P4 诊断/RTT/tick + P3c lite package；排除 NE/公证/Status Item/P5 |
+| 2026-11-06 | UI polish：品牌+Connect 主路径、More 次级、theme.json 青石强调色 |
 
 ---
 
