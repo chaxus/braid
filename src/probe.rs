@@ -1,7 +1,7 @@
 //! Lightweight path probes (P4 diagnostics).
 
 use std::net::{TcpStream, ToSocketAddrs};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Mainland public DNS — used as a "local network looks fine" signal.
 pub const LOCAL_PROBE_HOST: &str = "223.5.5.5";
@@ -27,14 +27,18 @@ pub fn classify_with(local_ok: bool, remote_ok: bool) -> PathClass {
 
 /// Try a TCP connect to `host:port` within `timeout`.
 pub fn tcp_reachable(host: &str, port: u16, timeout: Duration) -> bool {
+    tcp_rtt_ms(host, port, timeout).is_some()
+}
+
+/// TCP connect RTT in milliseconds, if the connect succeeds within `timeout`.
+pub fn tcp_rtt_ms(host: &str, port: u16, timeout: Duration) -> Option<u32> {
     let addr = format!("{host}:{port}");
-    let Ok(mut addrs) = addr.to_socket_addrs() else {
-        return false;
-    };
-    let Some(sock) = addrs.next() else {
-        return false;
-    };
-    TcpStream::connect_timeout(&sock, timeout).is_ok()
+    let mut addrs = addr.to_socket_addrs().ok()?;
+    let sock = addrs.next()?;
+    let start = Instant::now();
+    TcpStream::connect_timeout(&sock, timeout).ok()?;
+    let ms = start.elapsed().as_millis();
+    Some(ms.min(u128::from(u32::MAX)) as u32)
 }
 
 /// Probe a well-known domestic endpoint.
@@ -88,6 +92,17 @@ mod tests {
             port,
             Duration::from_millis(500)
         ));
+    }
+
+    #[test]
+    fn rtt_ms_on_open_port() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        thread::spawn(move || {
+            let _ = listener.accept();
+        });
+        let rtt = tcp_rtt_ms("127.0.0.1", port, Duration::from_millis(500));
+        assert!(rtt.is_some());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! Connection state machine — drives a [`DataPlane`] (TECH_PLAN §3.3 / §4).
 
-use crate::probe::{classify_path, PathClass};
+use crate::probe::{classify_path, tcp_rtt_ms, PathClass};
 use crate::profile::Profile;
 use crate::runtime::{DataPlane, FailKind, PlaneError, PlaneStatus};
 use crate::singbox::render_singbox_pretty;
@@ -265,7 +265,11 @@ impl Snapshot {
                     }
                 }
                 self.phase = Phase::Connected;
-                self.latency_ms = if plane.is_mock() { Some(42) } else { None };
+                self.latency_ms = if plane.is_mock() {
+                    Some(42)
+                } else {
+                    tcp_rtt_ms(&profile.server, profile.port, PATH_PROBE_TIMEOUT)
+                };
                 self.egress_ip = self.server.clone();
             }
             Err(err) => self.apply_plane_error(err),
