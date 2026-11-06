@@ -98,6 +98,14 @@ pub trait DataPlane {
     fn via_helper(&self) -> bool {
         false
     }
+    /// True when the last successful `start` went through Network Extension.
+    fn via_ne(&self) -> bool {
+        false
+    }
+    /// Trusted TUN path for Connected (NE or helper).
+    fn tun_trusted(&self) -> bool {
+        self.via_ne() || self.via_helper()
+    }
 }
 
 /// Default for tests / `nsh test`: no download, no spawn.
@@ -144,6 +152,8 @@ pub struct SingBoxPlane {
     child: Option<Child>,
     /// True when the last successful start went through braid-helper.
     via_helper: bool,
+    /// True when the last successful start went through Network Extension.
+    via_ne: bool,
     root: PathBuf,
 }
 
@@ -158,7 +168,44 @@ impl SingBoxPlane {
         Self {
             child: None,
             via_helper: false,
+            via_ne: false,
             root: braid_data_dir(),
+        }
+    }
+
+    fn start_via_ne(&mut self, prepared: &Prepared) -> Result<(), PlaneError> {
+        let json = fs::read_to_string(&prepared.config_path)
+            .map_err(|e| PlaneError::Io(e.to_string()))?;
+        crate::ne_plane::write_config(&json).map_err(|e| {
+            PlaneError::Permission(permission_hint(&format!("NE config write: {}", e.message())))
+        })?;
+        // Best-effort: copy sing-box into the App Group so the appex can find it.
+        if let Some(group_bin) = crate::ne_plane::group_container().map(|c| {
+            c.join("Library/Application Support/Braid/bin/sing-box")
+        }) {
+            if let Some(parent) = group_bin.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::copy(&prepared.binary_path, &group_bin);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = fs::metadata(&group_bin) {
+                    let mut perms = meta.permissions();
+                    perms.set_mode(0o755);
+                    let _ = fs::set_permissions(&group_bin, perms);
+                }
+            }
+        }
+        match crate::ne_plane::start_vpn() {
+            Ok(()) => {
+                self.via_ne = true;
+                self.via_helper = false;
+                self.child = None;
+                Ok(())
+            }
+            Err(e) if e.is_unavailable() => Err(PlaneError::Permission(permission_hint(e.message()))),
+            Err(e) => Err(PlaneError::Process(e.message().to_owned())),
         }
     }
 
@@ -278,6 +325,7 @@ impl SingBoxPlane {
             return Err(PlaneError::Process(detail));
         }
         self.via_helper = true;
+        self.via_ne = false;
         self.child = None;
         Ok(())
     }
@@ -307,6 +355,18 @@ impl DataPlane for SingBoxPlane {
 
     fn start(&mut self, prepared: &Prepared) -> Result<(), PlaneError> {
         let _ = self.stop();
+
+        // Prefer Network Extension when the system will accept a VPN start.
+        #[cfg(target_os = "macos")]
+        {
+            match self.start_via_ne(prepared) {
+                Ok(()) => return Ok(()),
+                Err(PlaneError::Permission(_)) => {
+                    // Fall through to helper / local spawn.
+                }
+                Err(e) => return Err(e),
+            }
+        }
 
         // Prefer privileged helper when the LaunchDaemon socket answers.
         if helper_socket_present() {
@@ -351,10 +411,15 @@ impl DataPlane for SingBoxPlane {
 
         self.child = Some(child);
         self.via_helper = false;
+        self.via_ne = false;
         Ok(())
     }
 
     fn stop(&mut self) -> Result<(), PlaneError> {
+        if self.via_ne {
+            let _ = crate::ne_plane::stop_vpn();
+            self.via_ne = false;
+        }
         #[cfg(unix)]
         if self.via_helper || helper_socket_present() {
             let _ = helper_rpc(&HelperRequest::stop());
@@ -372,6 +437,13 @@ impl DataPlane for SingBoxPlane {
     }
 
     fn poll(&mut self) -> PlaneStatus {
+        if self.via_ne {
+            if crate::ne_plane::tunnel_seems_up() {
+                return PlaneStatus::Up;
+            }
+            self.via_ne = false;
+            return PlaneStatus::Idle;
+        }
         #[cfg(unix)]
         if self.via_helper {
             match helper_rpc(&HelperRequest::status()) {
@@ -405,6 +477,10 @@ impl DataPlane for SingBoxPlane {
 
     fn via_helper(&self) -> bool {
         self.via_helper
+    }
+
+    fn via_ne(&self) -> bool {
+        self.via_ne
     }
 }
 
@@ -522,7 +598,7 @@ fn looks_like_permission(text: &str) -> bool {
 }
 
 fn permission_hint(extra: &str) -> String {
-    let base = "TUN needs the Braid helper (sudo ./scripts/install-helper.sh) or a Network Extension.";
+    let base = "TUN needs Network Extension (scripts/open-ne-xcode.sh + approve VPN) or the Braid helper (sudo ./scripts/install-helper.sh).";
     if extra.is_empty() {
         base.into()
     } else {

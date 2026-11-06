@@ -42,6 +42,10 @@ pub struct Snapshot {
     pub mock_plane: bool,
     /// True when braid-helper answered ping at UI start (live plane only).
     pub helper_online: bool,
+    /// Last successful Connect went through Network Extension.
+    pub via_ne: bool,
+    /// Last successful Connect went through braid-helper.
+    pub via_helper: bool,
     pub profile_loaded: bool,
     pub config_bytes: usize,
     pub server: Option<String>,
@@ -61,6 +65,8 @@ impl Default for Snapshot {
             egress_ip: None,
             mock_plane: true,
             helper_online: false,
+            via_ne: false,
+            via_helper: false,
             profile_loaded: false,
             config_bytes: 0,
             server: None,
@@ -121,17 +127,21 @@ impl Snapshot {
 
     pub fn footer_line(&self) -> String {
         if self.mock_plane {
-            "TUN · mock plane (set BRAID_LIVE=1 for real sing-box)".to_owned()
-        } else if self.helper_online {
-            if self.phase == Phase::Connected {
-                "TUN · via braid-helper".to_owned()
-            } else {
-                "TUN · braid-helper online".to_owned()
+            return "TUN · mock plane (set BRAID_LIVE=1 for real sing-box)".to_owned();
+        }
+        if self.phase == Phase::Connected {
+            if self.via_ne {
+                return "TUN · via NE".to_owned();
             }
-        } else if self.phase == Phase::Connected {
-            "TUN · live (no helper — TUN may lack privileges)".to_owned()
+            if self.via_helper {
+                return "TUN · via braid-helper".to_owned();
+            }
+            return "TUN · live (NE or helper required)".to_owned();
+        }
+        if self.helper_online {
+            "TUN · braid-helper online · NE preferred when signed".to_owned()
         } else {
-            "TUN · live · helper: sudo ./scripts/install-helper.sh".to_owned()
+            "TUN · live · NE (open-ne-xcode) or helper (install-helper.sh)".to_owned()
         }
     }
 
@@ -140,7 +150,7 @@ impl Snapshot {
         let base = match reason {
             FailReason::Mock => "Simulated failure.".to_owned(),
             FailReason::Permission => {
-                "Install the Braid helper: sudo ./scripts/install-helper.sh".to_owned()
+                "Approve VPN (NE) or install helper: sudo ./scripts/install-helper.sh".to_owned()
             }
             FailReason::Path => {
                 "Path to the server is down (local network looks fine).".to_owned()
@@ -215,6 +225,8 @@ impl Snapshot {
         self.phase = Phase::Connecting;
         self.fail = None;
         self.fail_detail = None;
+        self.via_ne = false;
+        self.via_helper = false;
         self.mock_plane = plane.is_mock();
 
         match plane.prepare(&profile).and_then(|p| {
@@ -230,11 +242,11 @@ impl Snapshot {
                     let _ = plane.stop();
                     return;
                 }
-                // Live plane: TUN needs the privileged helper — do not sit in Connected.
-                if !plane.is_mock() && !plane.via_helper() {
+                // Live plane: TUN needs NE or helper — do not sit in Connected otherwise.
+                if !plane.is_mock() && !plane.tun_trusted() {
                     let _ = plane.stop();
                     self.apply_plane_error(PlaneError::Permission(
-                        "sing-box started without braid-helper; TUN is not trusted.".into(),
+                        "sing-box started without NE or braid-helper; TUN is not trusted.".into(),
                     ));
                     return;
                 }
@@ -268,6 +280,8 @@ impl Snapshot {
                     }
                 }
                 self.phase = Phase::Connected;
+                self.via_ne = plane.via_ne();
+                self.via_helper = plane.via_helper();
                 self.latency_ms = if plane.is_mock() {
                     Some(42)
                 } else {
@@ -285,6 +299,8 @@ impl Snapshot {
         self.phase = Phase::Idle;
         self.latency_ms = None;
         self.egress_ip = None;
+        self.via_ne = false;
+        self.via_helper = false;
         self.fail = None;
         self.fail_detail = None;
     }
@@ -305,12 +321,18 @@ impl Snapshot {
         if !self.mock_plane {
             self.helper_online = crate::runtime::SingBoxPlane::helper_reachable();
         }
+        if self.phase == Phase::Connected {
+            self.via_ne = plane.via_ne();
+            self.via_helper = plane.via_helper();
+        }
         if self.phase == Phase::Connected && plane.poll() != PlaneStatus::Up {
             self.phase = Phase::Failed;
             self.fail = Some(FailReason::Process);
             self.fail_detail = Some("core exited while connected".into());
             self.latency_ms = None;
             self.egress_ip = None;
+            self.via_ne = false;
+            self.via_helper = false;
             let _ = plane.stop();
         }
     }
@@ -361,6 +383,8 @@ impl Snapshot {
         self.phase = Phase::Failed;
         self.latency_ms = None;
         self.egress_ip = None;
+        self.via_ne = false;
+        self.via_helper = false;
         self.fail_detail = Some(err.message().to_owned());
         self.fail = Some(match err.as_fail_kind() {
             FailKind::Permission => FailReason::Permission,
@@ -534,6 +558,25 @@ mod tests {
             Some(FailReason::Path) | Some(FailReason::Local)
         ));
         assert!(!plane.up);
+    }
+
+    #[test]
+    fn footer_distinguishes_ne_and_helper() {
+        let mut s = Snapshot::default();
+        s.mock_plane = false;
+        s.phase = Phase::Connected;
+        s.via_ne = true;
+        assert_eq!(s.footer_line(), "TUN · via NE");
+        s.via_ne = false;
+        s.via_helper = true;
+        assert_eq!(s.footer_line(), "TUN · via braid-helper");
+        s.phase = Phase::Idle;
+        s.via_helper = false;
+        s.helper_online = false;
+        assert!(s.footer_line().contains("open-ne-xcode"));
+        assert!(s.fail_copy().is_none());
+        s.fail = Some(FailReason::Permission);
+        assert!(s.fail_copy().unwrap().contains("Approve VPN"));
     }
 
     #[test]
