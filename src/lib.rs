@@ -2,6 +2,7 @@
 
 mod connection;
 pub mod helper_proto;
+mod ne_plane;
 mod probe;
 mod profile;
 mod runtime;
