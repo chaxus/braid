@@ -13,9 +13,9 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Status
 
-**macOS MVP complete:** privileged helper, saved profile, honest Connected, Path/Local diagnostics, live RTT, Refresh, ad-hoc `nsh package`. Main panel is **connect-first** (Braid brand + Connect; tools under More). Default UI uses a **mock plane**; live: `BRAID_LIVE=1`.
+**macOS MVP + NE skeleton:** privileged helper, Packet Tunnel scaffold, saved profile, honest Connected (`via_ne` or `via_helper`), Path/Local diagnostics, live RTT, Refresh, ad-hoc `nsh package`. Main panel is **connect-first**. Default UI uses a **mock plane**; live: `BRAID_LIVE=1`. Connect prefers Network Extension when the signed appex is installed; otherwise falls back to helper.
 
-Still out of scope: Network Extension, Apple notarization, menu-bar Status Item (no NSH 0.4 API), Android/iOS.
+Still out of scope: Apple notarization, App Store, menu-bar Status Item (no NSH 0.4 API), Android/iOS, replacing the helper.
 
 | Phase | Deliverable |
 |---|---|
@@ -23,6 +23,7 @@ Still out of scope: Network Extension, Apple notarization, menu-bar Status Item 
 | P3 usable | Saved profile, helper Connected gate, TCP probe |
 | P4 core | Local vs Path classify, RTT, tick, Run diagnostics |
 | P3c lite | `scripts/package.sh` (ad-hoc `.app`) |
+| P3b-NE | Packet Tunnel + App Group + Rust NEVPN (helper fallback) |
 
 Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
 
@@ -55,6 +56,30 @@ cp /path/to/your.profile.json "$HOME/Library/Application Support/Braid/profile.j
 ```
 
 Optional: `BRAID_SINGBOX=/path/to/sing-box` to skip download. Uninstall helper: `./scripts/uninstall-helper.sh`.
+
+## Network Extension (optional, preferred TUN path)
+
+Requires **Xcode** and an **Apple Developer Team** (paid personal account is enough). Without a signed appex, Connect falls back to the helper — unsigned builds cannot claim NE Connected.
+
+```bash
+brew install xcodegen   # once
+cp macos/Config/Local.xcconfig.example macos/Config/Local.xcconfig
+# edit Local.xcconfig: DEVELOPMENT_TEAM = YourTeamID
+# or: export DEVELOPMENT_TEAM=YourTeamID
+
+./scripts/open-ne-xcode.sh
+```
+
+In Xcode:
+
+1. Select **BraidHost** → Signing & Capabilities → your Team (same for **BraidTunnel**).
+2. Confirm App Groups: `group.com.chaxus.braid`.
+3. Confirm Network Extensions → Packet Tunnel.
+4. Build & run **BraidHost** once so the system installs the appex.
+5. Approve the VPN configuration when macOS prompts.
+6. Run the NSH UI with `BRAID_LIVE=1 nsh run --target macos` — Connect prefers NE; footer shows `via NE`.
+
+Do **not** commit `macos/Config/Local.xcconfig` or any certificates. Notarization is out of scope for this slice.
 
 ## Package
 
