@@ -1,8 +1,13 @@
 //! Braid profile: the user-facing import format (JSON), not Clash YAML.
 
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub const DEMO_PROFILE_JSON: &str = include_str!("../fixtures/demo.profile.json");
+
+/// Env override for the on-disk profile path.
+pub const PROFILE_PATH_ENV: &str = "BRAID_PROFILE";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Profile {
@@ -36,6 +41,7 @@ pub struct Hysteria2 {
 pub enum ProfileError {
     Json(String),
     Invalid(String),
+    Io(String),
 }
 
 impl std::fmt::Display for ProfileError {
@@ -43,6 +49,7 @@ impl std::fmt::Display for ProfileError {
         match self {
             ProfileError::Json(msg) => write!(f, "invalid JSON: {msg}"),
             ProfileError::Invalid(msg) => write!(f, "invalid profile: {msg}"),
+            ProfileError::Io(msg) => write!(f, "profile I/O: {msg}"),
         }
     }
 }
@@ -57,6 +64,30 @@ impl Profile {
 
     pub fn demo() -> Self {
         Self::from_json(DEMO_PROFILE_JSON).expect("demo profile fixture must parse")
+    }
+
+    /// `BRAID_PROFILE` if set, else `…/Braid/profile.json` under the user data dir.
+    pub fn default_path() -> PathBuf {
+        if let Ok(p) = std::env::var(PROFILE_PATH_ENV) {
+            if !p.is_empty() {
+                return PathBuf::from(p);
+            }
+        }
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Braid")
+            .join("profile.json")
+    }
+
+    pub fn load_from_path(path: &Path) -> Result<Self, ProfileError> {
+        let text = fs::read_to_string(path).map_err(|e| {
+            ProfileError::Io(format!("{}: {e}", path.display()))
+        })?;
+        Self::from_json(&text)
+    }
+
+    pub fn load_default() -> Result<Self, ProfileError> {
+        Self::load_from_path(&Self::default_path())
     }
 
     pub fn validate(&self) -> Result<(), ProfileError> {
@@ -125,5 +156,27 @@ mod tests {
         let mut bad = DEMO_PROFILE_JSON.to_owned();
         bad = bad.replacen("Demo node", "", 1);
         assert!(Profile::from_json(&bad).is_err());
+    }
+
+    #[test]
+    fn load_from_path_ok_and_bad() {
+        let dir = std::env::temp_dir().join(format!("braid-profile-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let ok = dir.join("ok.json");
+        fs::write(&ok, DEMO_PROFILE_JSON).unwrap();
+        let loaded = Profile::load_from_path(&ok).unwrap();
+        assert_eq!(loaded.name, "Demo node");
+
+        let bad = dir.join("bad.json");
+        fs::write(&bad, "{\"name\":\"\"}").unwrap();
+        assert!(Profile::load_from_path(&bad).is_err());
+
+        let missing = dir.join("missing.json");
+        assert!(matches!(
+            Profile::load_from_path(&missing),
+            Err(ProfileError::Io(_))
+        ));
+        let _ = fs::remove_dir_all(&dir);
     }
 }

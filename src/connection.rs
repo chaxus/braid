@@ -167,6 +167,29 @@ impl Snapshot {
         self.apply_profile(Profile::demo());
     }
 
+    /// Load `BRAID_PROFILE` or `…/Braid/profile.json`.
+    pub fn load_saved_profile(&mut self) {
+        match Profile::load_default() {
+            Ok(profile) => self.apply_profile(profile),
+            Err(e) => self.fail_profile_load(e.to_string()),
+        }
+    }
+
+    pub fn load_profile_from_path(&mut self, path: &std::path::Path) {
+        match Profile::load_from_path(path) {
+            Ok(profile) => self.apply_profile(profile),
+            Err(e) => self.fail_profile_load(e.to_string()),
+        }
+    }
+
+    fn fail_profile_load(&mut self, detail: String) {
+        self.phase = Phase::Failed;
+        self.fail = Some(FailReason::Process);
+        self.fail_detail = Some(detail);
+        self.latency_ms = None;
+        self.egress_ip = None;
+    }
+
     pub fn set_mock_plane(&mut self, mock: bool) {
         self.mock_plane = mock;
     }
@@ -272,5 +295,19 @@ mod tests {
         s.simulate_path_failure();
         assert_eq!(s.phase, Phase::Failed);
         assert!(s.fail_copy().unwrap().contains("Path to the server"));
+    }
+
+    #[test]
+    fn load_saved_profile_missing_fails() {
+        let missing = std::env::temp_dir().join(format!(
+            "braid-snap-missing-{}.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&missing);
+        let mut s = Snapshot::default();
+        s.load_profile_from_path(&missing);
+        assert_eq!(s.phase, Phase::Failed);
+        assert!(!s.profile_loaded);
+        assert!(s.fail_copy().unwrap().contains("profile I/O"));
     }
 }

@@ -55,6 +55,7 @@ pub fn App() -> impl IntoElement {
                 .child(config_status(&snap))
                 .child(policy_row())
                 .child(primary_button(&snap, &plane))
+                .child(load_saved_button(&snap))
                 .child(load_demo_button(&snap))
                 .child(secondary_row(&snap, &plane))
                 .child(footer(&snap)),
@@ -167,6 +168,26 @@ fn primary_button(
                 .text_size(px(16.0))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(move || theme().primary_foreground),
+        )
+}
+
+fn load_saved_button(snap: &Signal<Snapshot>) -> impl IntoElement {
+    let snap = snap.clone();
+    view()
+        .w_full()
+        .items_center()
+        .justify_center()
+        .px_4()
+        .py_2()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(move || theme().border)
+        .active(|s| s.opacity(0.7))
+        .on_press(move || snap.update(|s| s.load_saved_profile()))
+        .child(
+            text("Load saved profile")
+                .text_size(px(13.0))
+                .text_color(move || theme().foreground),
         )
 }
 
