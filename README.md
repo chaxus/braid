@@ -13,16 +13,16 @@ Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Status
 
-**P3 usable (current):** Load a real profile from disk, require `braid-helper` for live Connected, and classify unreachable servers as Path. Default UI still uses a **mock plane**. Live: `BRAID_LIVE=1`. Network Extension / notarization deferred — see the tech plan.
+**macOS MVP complete:** privileged helper, saved profile, honest Connected, Path/Local diagnostics, live RTT, Refresh status, ad-hoc `nsh package`. Default UI uses a **mock plane**; live: `BRAID_LIVE=1`.
+
+Still out of scope: Network Extension, Apple notarization, menu-bar Status Item (no NSH 0.4 API), Android/iOS.
 
 | Phase | Deliverable |
 |---|---|
-| P1 | NSH shell, connect UI, mock state |
-| P2 | Profile import + sing-box config generation |
-| P3a | sing-box process lifecycle + honest Permission failures |
-| P3b | macOS LaunchDaemon helper (real TUN after one `sudo` install) |
-| P3 usable | Saved profile path, Connected helper gate, TCP Path probe |
-| P4 | Fuller diagnostics, dual-link polish |
+| P1–P3b | Shell, profile/render, DataPlane, LaunchDaemon helper |
+| P3 usable | Saved profile, helper Connected gate, TCP probe |
+| P4 core | Local vs Path classify, RTT, tick, Run diagnostics |
+| P3c lite | `scripts/package.sh` (ad-hoc `.app`) |
 
 Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
 
@@ -55,6 +55,13 @@ cp /path/to/your.profile.json "$HOME/Library/Application Support/Braid/profile.j
 ```
 
 Optional: `BRAID_SINGBOX=/path/to/sing-box` to skip download. Uninstall helper: `./scripts/uninstall-helper.sh`.
+
+## Package
+
+```bash
+./scripts/package.sh
+# → .nsh/out … ad-hoc signed .app (not notarized)
+```
 
 ## Test
 

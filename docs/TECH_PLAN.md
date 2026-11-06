@@ -278,6 +278,7 @@ trait DataPlane {
 | P3a | DataPlane / 启停 / 诚实 Permission | 完成（默认 mock；`BRAID_LIVE=1` 真平面） |
 | P3b | Privileged Helper（LaunchDaemon） | **主路径已落地**；NE 推迟 |
 | P3 usable | 本机 Profile + Connected 门槛 + TCP Path | **已完成**（见 [SCOPE_LOCK_P3_usable.md](SCOPE_LOCK_P3_usable.md)） |
+| P4 core + P3c lite | 诊断/延迟/掉线 + `nsh package` | **macOS MVP 收口完成**（见 [SCOPE_LOCK_macos_mvp.md](SCOPE_LOCK_macos_mvp.md)） |
 
 ### P3a — 进程面与诚实失败（已完成）
 
@@ -322,16 +323,20 @@ trait DataPlane {
 
 ### P3c — 分发与菜单栏
 
-- 菜单栏 Status Item（NSH 若无 API 则薄原生桥）  
-- 公证 / 安装包  
-- 自动更新策略（可选）
+| 项 | 状态 |
+|---|---|
+| `nsh package` ad-hoc `.app`（`scripts/package.sh`） | **已完成（lite）** |
+| 菜单栏 NSStatusItem | **未做**（NSH 0.4 无 API；紧凑窗保留） |
+| Apple 公证 / Developer ID / 自动更新 | **未做**（另开） |
 
 ### P4 — 体验与双链路智能
 
-- 诊断一句人话（对齐 wall diagnostics 思想：国内 OK + VPS TCP 失败 ⇒ Path）  
-- Degraded 态、延迟展示  
-- 可选：与 wall/`sync_ip` 的协同（**只读本地配置更新，不把 AWS 凭据引进本仓**）  
-- 国内直连规则增强（仍避免默认巨库；可用精简规则或可选下载）
+| 项 | 状态 |
+|---|---|
+| 诊断一句人话（本地 OK + VPS TCP 失败 ⇒ Path；LocalDown） | **已完成** |
+| live 延迟（TCP RTT） | **已完成** |
+| Connected 掉线检测（Refresh status / tick） | **已完成** |
+| Degraded 态、双链路智能、wall sync_ip、巨库规则 | **未做**（可选后续） |
 
 ### P5 — Android / iOS
 
@@ -415,7 +420,9 @@ trait DataPlane {
 | DataPlane / 真启停 | `src/runtime.rs` | **P3a 已实现**（默认 mock；`BRAID_LIVE=1` 真平面） |
 | Privileged Helper | `src/helper_proto.rs`, `src/bin/braid_helper.rs`, `scripts/*helper*` | **P3b 已实现**（NE 推迟） |
 | 本机 Profile / Connected 门槛 / Path TCP | `src/profile.rs`, `src/connection.rs`, `src/probe.rs` | **P3 usable 已实现** |
-| 诊断 | `src/probe.rs`（仅 TCP） | P4 其余未做 |
+| 诊断 / 延迟 / tick | `src/probe.rs`, `src/connection.rs`, UI | **P4 核心已实现** |
+| ad-hoc 打包 | `scripts/package.sh` | **P3c lite 已实现** |
+| NE / 公证 / Status Item / P5 | — | **未做** |
 
 实现新功能前：更新本表与对应阶段验收；若改 D1–D6，先改 §12 再写代码。
 
@@ -429,11 +436,15 @@ trait DataPlane {
 | 2026-11-06 | 许可证改为 Apache-2.0；仓库公开；P3a DataPlane 落地 |
 | 2026-11-06 | P3b：锁定 LaunchDaemon helper（非 NE）；协议/二进制/安装脚本/plane 优先 socket |
 | 2026-11-06 | P3 usable：本机 Profile、live Connected 需 helper、TCP Path 探测 |
+| 2026-11-06 | macOS MVP 收口：P4 诊断/RTT/tick + P3c lite package；排除 NE/公证/Status Item/P5 |
 
 ---
 
 ## 15. 下一步（实现入口）
 
-P3 usable 已完成后：本机装 helper + 真实 `profile.json` 跑 TECH_PLAN §9 手工 TUN 验收 → 再开 **P3c**（分发/菜单栏）或 **P4**（完诊断/双链路）。NE 另开 Scope Lock。
+**macOS 个人客户端 MVP 代码侧已收口。** 余下：
+
+1. 本机 §9 手工 TUN（真实 Profile + helper）  
+2. 另开切片：NE、公证、NSStatusItem（待 NSH API）、P5、Degraded/双链路  
 
 未装 helper 时，对外描述须保留「需安装 helper」类限定语。
