@@ -1,4 +1,7 @@
-//! Connection state machine (P1: UI + mock transitions; real TUN arrives in P3).
+//! Connection state machine (mock until P3 wires real TUN).
+
+use crate::profile::Profile;
+use crate::singbox::render_singbox_pretty;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
@@ -10,9 +13,8 @@ pub enum Phase {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // Permission / Server / Mock used as the model grows past P1.
+#[allow(dead_code)] // Permission / Server / Mock used as the model grows.
 pub enum FailReason {
-    /// Reserved for intentional mock failures in development.
     Mock,
     Permission,
     Path,
@@ -26,8 +28,11 @@ pub struct Snapshot {
     pub node: String,
     pub latency_ms: Option<u32>,
     pub egress_ip: Option<String>,
-    /// Shown in the UI so P1 is never mistaken for a live tunnel.
+    /// True until P3 enables a live tunnel.
     pub simulated: bool,
+    pub profile_loaded: bool,
+    pub config_bytes: usize,
+    pub server: Option<String>,
 }
 
 impl Default for Snapshot {
@@ -35,10 +40,13 @@ impl Default for Snapshot {
         Self {
             phase: Phase::Idle,
             fail: None,
-            node: "Demo node".to_owned(),
+            node: "No profile".to_owned(),
             latency_ms: None,
             egress_ip: None,
             simulated: true,
+            profile_loaded: false,
+            config_bytes: 0,
+            server: None,
         }
     }
 }
@@ -64,7 +72,8 @@ impl Snapshot {
     }
 
     pub fn primary_enabled(&self) -> bool {
-        matches!(self.phase, Phase::Idle | Phase::Connected | Phase::Failed)
+        self.profile_loaded
+            && matches!(self.phase, Phase::Idle | Phase::Connected | Phase::Failed)
     }
 
     pub fn summary_line(&self) -> String {
@@ -79,6 +88,14 @@ impl Snapshot {
         format!("{} · {} · {}", self.node, latency, ip)
     }
 
+    pub fn config_line(&self) -> String {
+        if self.profile_loaded {
+            format!("sing-box config ready · {} B", self.config_bytes)
+        } else {
+            "Load a profile to generate sing-box config".to_owned()
+        }
+    }
+
     pub fn fail_copy(&self) -> Option<&'static str> {
         match self.fail? {
             FailReason::Mock => Some("Simulated failure."),
@@ -88,16 +105,34 @@ impl Snapshot {
         }
     }
 
-    /// Primary button: connect or disconnect (mock, synchronous for P1).
+    pub fn apply_profile(&mut self, profile: &Profile) {
+        let config = render_singbox_pretty(profile);
+        self.node = profile.name.clone();
+        self.server = Some(profile.server.clone());
+        self.profile_loaded = true;
+        self.config_bytes = config.len();
+        self.fail = None;
+        if self.phase == Phase::Failed {
+            self.phase = Phase::Idle;
+        }
+    }
+
+    pub fn load_demo_profile(&mut self) {
+        self.apply_profile(&Profile::demo());
+    }
+
     pub fn toggle_primary(&mut self) {
+        if !self.profile_loaded {
+            return;
+        }
         match self.phase {
             Phase::Idle | Phase::Failed => {
                 self.phase = Phase::Connecting;
                 self.fail = None;
-                // P1: no async runtime wired yet — complete the mock handshake immediately.
+                // Still mock until P3 — pretend we connected via the profile server.
                 self.phase = Phase::Connected;
                 self.latency_ms = Some(42);
-                self.egress_ip = Some("203.0.113.10".to_owned());
+                self.egress_ip = self.server.clone();
             }
             Phase::Connected => {
                 self.phase = Phase::Disconnecting;
@@ -123,16 +158,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn connect_then_disconnect() {
+    fn connect_requires_profile() {
         let mut s = Snapshot::default();
+        assert!(!s.primary_enabled());
+        s.toggle_primary();
         assert_eq!(s.phase, Phase::Idle);
+        s.load_demo_profile();
+        assert!(s.primary_enabled());
+        assert!(s.config_bytes > 100);
         s.toggle_primary();
         assert_eq!(s.phase, Phase::Connected);
-        assert_eq!(s.latency_ms, Some(42));
         assert_eq!(s.egress_ip.as_deref(), Some("203.0.113.10"));
         s.toggle_primary();
         assert_eq!(s.phase, Phase::Idle);
-        assert!(s.latency_ms.is_none());
     }
 
     #[test]

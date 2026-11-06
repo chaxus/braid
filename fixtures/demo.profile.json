@@ -1,0 +1,18 @@
+{
+  "name": "Demo node",
+  "server": "203.0.113.10",
+  "port": 443,
+  "reality": {
+    "uuid": "00000000-1111-2222-3333-444444444444",
+    "public_key": "0123456789abcdef0123456789abcdef0123456789a",
+    "short_id": "0123456789abcdef",
+    "server_name": "www.samsung.com"
+  },
+  "hysteria2": {
+    "password": "demo-auth-password",
+    "obfs_password": "demo-obfs-password",
+    "server_name": "www.bing.com",
+    "pin_sha256": "DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF:DE:AD:BE:EF"
+  },
+  "cidr_direct": ["203.0.113.10/32"]
+}

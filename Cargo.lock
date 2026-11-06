@@ -206,12 +206,15 @@ dependencies = [
 name = "braid"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "env_logger",
  "nsh-base",
  "nsh-core",
  "nsh-platform-linux",
  "nsh-platform-macos",
  "nsh-platform-windows",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

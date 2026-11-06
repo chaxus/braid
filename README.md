@@ -6,7 +6,7 @@ Mac first; Android / iOS later from the same app model. This repository stays cl
 
 ## Status
 
-**P1 (current):** macOS panel UI + mock connection state machine. Labelled `TUN · simulated (P1)` so it is never mistaken for a live tunnel.
+**P2 (current):** Profile JSON + sing-box config generation + mock connect UI. Labelled `TUN · simulated (P2)`.
 
 | Phase | Deliverable |
 |---|---|
@@ -14,6 +14,8 @@ Mac first; Android / iOS later from the same app model. This repository stays cl
 | P2 | Profile import + sing-box config generation |
 | P3 | Real macOS TUN |
 | P4 | Dual-link auto + diagnostics copy |
+
+Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
 
 See [docs/SPEC.md](docs/SPEC.md) and [docs/SCOPE_LOCK.md](docs/SCOPE_LOCK.md).
 

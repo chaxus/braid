@@ -1,9 +1,15 @@
 import { expect, open, test } from "nsh/test";
 
-test("connects and disconnects (simulated)", async () => {
+test("loads demo profile then connects", async () => {
   const app = await open(".");
   expect(app.texts()).toContain("Disconnected");
-  expect(app.texts()).toContain("TUN · simulated (P1)");
+  expect(app.texts()).toContain("TUN · simulated (P2)");
+  expect(app.texts()).toContain("No profile · — · —");
+  await app.press("Load demo profile");
+  expect(app.texts().some((t: string) => t.includes("sing-box config ready"))).toBe(
+    true,
+  );
+  expect(app.texts().some((t: string) => t.startsWith("Demo node"))).toBe(true);
   await app.press("Connect");
   expect(app.texts()).toContain("Connected");
   expect(
@@ -16,6 +22,8 @@ test("connects and disconnects (simulated)", async () => {
 test("shows path failure copy", async () => {
   const app = await open(".");
   await app.press("Simulate path failure");
-  expect(app.texts().some((t: string) => t.includes("Path to the server"))).toBe(true);
+  expect(app.texts().some((t: string) => t.includes("Path to the server"))).toBe(
+    true,
+  );
   expect(app.texts()).toContain("Failed");
 });

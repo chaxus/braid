@@ -74,6 +74,13 @@ Import sources later: paste JSON, file, or deep link. v0.1 can use a fixture pro
 - User can toggle mock Connect / Disconnect and see status + summary update
 - No secrets in git; MIT LICENSE present
 
-## Out of scope for P1
+## Acceptance (P2)
 
-Real TUN, sing-box binary bundling, wall server coupling.
+- Demo profile JSON loads (`fixtures/demo.profile.json`, documentation IPs only)
+- `render_singbox` emits TUN inbound, stealth + speed outbounds, `auto` urltest, server CIDR direct
+- UI: Load demo profile → config ready → Connect (still simulated)
+- `cargo test --lib` and `nsh test` green
+
+## Out of scope through P2
+
+Real TUN, sing-box binary bundling, wall server coupling, geosite databases.
