@@ -1,0 +1,54 @@
+name: Braid
+options:
+  bundleIdPrefix: com.chaxus
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set locally: export DEVELOPMENT_TEAM=XXXXXXXXXX
+    DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+    CODE_SIGN_STYLE: Automatic
+configs:
+  Debug: debug
+  Release: release
+targets:
+  BraidHost:
+    type: application
+    platform: macOS
+    sources:
+      - BraidHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chaxus.braid
+        INFOPLIST_KEY_CFBundleDisplayName: Braid
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        CODE_SIGN_ENTITLEMENTS: BraidHost/BraidHost.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+    dependencies:
+      - target: BraidTunnel
+        embed: true
+    scheme:
+      testTargets: []
+
+  BraidTunnel:
+    type: app-extension
+    platform: macOS
+    sources:
+      - BraidTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chaxus.braid.tunnel
+        CODE_SIGN_ENTITLEMENTS: BraidTunnel/BraidTunnel.entitlements
+        INFOPLIST_FILE: BraidTunnel/Info.plist
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+          - "@executable_path/../../../../Frameworks"
+        PRODUCT_NAME: BraidTunnel
+    dependencies: []

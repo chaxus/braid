@@ -1,0 +1,6 @@
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+Config/Local.xcconfig
+*.xcuserstate
+xcuserdata/
