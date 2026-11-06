@@ -17,7 +17,8 @@ Mac first; Android / iOS later from the same app model. This repository stays cl
 
 Demo profile (fake credentials only): [`fixtures/demo.profile.json`](fixtures/demo.profile.json).
 
-See [docs/SPEC.md](docs/SPEC.md) and [docs/SCOPE_LOCK.md](docs/SCOPE_LOCK.md).
+**Tech plan (source of truth):** [docs/TECH_PLAN.md](docs/TECH_PLAN.md)  
+Also: [docs/SPEC.md](docs/SPEC.md) · [docs/README.md](docs/README.md)
 
 ## Requirements
 

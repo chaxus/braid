@@ -3,6 +3,8 @@
 Personal TUN-first proxy client. UI in Native Shell (NSH); data plane is sing-box.
 Mac first; Android / iOS later from the same app model.
 
+> **Implementation authority:** [TECH_PLAN.md](TECH_PLAN.md). If this summary drifts from the tech plan, fix one of them deliberately — do not “just code past it”.
+
 ## Goals
 
 1. Replace Clash Verge for daily use: **TUN must work**; system proxy alone is not enough.
