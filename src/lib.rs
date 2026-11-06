@@ -1,4 +1,4 @@
-//! Braid — TUN-first proxy client (P3b: privileged helper + DataPlane).
+//! Braid — TUN-first proxy client (main panel: connect-first UX).
 
 mod connection;
 pub mod helper_proto;
@@ -28,7 +28,7 @@ fn make_plane() -> Rc<RefCell<Box<dyn DataPlane>>> {
     }
 }
 
-/// Compact connection panel (menu-bar popover shape; real status-item comes later).
+/// Compact connection panel — brand + Connect first; tools under More.
 #[component]
 pub fn App() -> impl IntoElement {
     let plane = make_plane();
@@ -41,7 +41,6 @@ pub fn App() -> impl IntoElement {
         }
         s
     });
-
     view()
         .flex_1()
         .bg(move || theme().background)
@@ -49,40 +48,39 @@ pub fn App() -> impl IntoElement {
         .child(
             view()
                 .flex_1()
-                .p_5()
-                .gap_3()
-                .child(header(&snap))
+                .px_5()
+                .pt_6()
+                .pb_4()
+                .gap_4()
+                .child(brand_header(&snap))
                 .child(summary(&snap))
-                .child(config_status(&snap))
-                .child(policy_row())
                 .child(primary_button(&snap, &plane))
-                .child(load_saved_button(&snap))
-                .child(load_demo_button(&snap))
-                .child(secondary_row(&snap, &plane))
-                .child(diag_row(&snap))
-                .child(footer(&snap)),
+                .child(policy_row())
+                .child(fail_banner(&snap))
+                .child(footer(&snap))
+                .child(more_section(&snap, &plane)),
         )
 }
 
-fn header(snap: &Signal<Snapshot>) -> impl IntoElement {
+fn brand_header(snap: &Signal<Snapshot>) -> impl IntoElement {
     let snap = snap.clone();
     view()
-        .flex_row()
-        .items_center()
-        .gap_3()
-        .child(status_dot(&snap))
+        .flex_col()
+        .gap_2()
+        .child(
+            text("Braid")
+                .text_size(px(28.0))
+                .font_weight(FontWeight::SEMIBOLD),
+        )
         .child(
             view()
-                .flex_col()
-                .gap_1()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(status_dot(&snap))
                 .child(
                     text(move || snap.get().status_title().to_owned())
-                        .text_size(px(20.0))
-                        .font_weight(FontWeight::SEMIBOLD),
-                )
-                .child(
-                    text("Braid")
-                        .text_size(px(13.0))
+                        .text_size(px(15.0))
                         .text_color(move || theme().muted_foreground),
                 ),
         )
@@ -91,8 +89,20 @@ fn header(snap: &Signal<Snapshot>) -> impl IntoElement {
 fn status_dot(snap: &Signal<Snapshot>) -> impl IntoElement {
     let snap = snap.clone();
     view()
-        .w(px(12.0))
-        .h(px(12.0))
+        .w(move || {
+            if snap.get().phase == Phase::Connected {
+                px(14.0)
+            } else {
+                px(10.0)
+            }
+        })
+        .h(move || {
+            if snap.get().phase == Phase::Connected {
+                px(14.0)
+            } else {
+                px(10.0)
+            }
+        })
         .rounded_full()
         .bg(move || match snap.get().phase {
             Phase::Connected => theme().primary,
@@ -117,19 +127,16 @@ fn summary(snap: &Signal<Snapshot>) -> impl IntoElement {
         )
 }
 
-fn config_status(snap: &Signal<Snapshot>) -> impl IntoElement {
-    let snap = snap.clone();
-    text(move || snap.get().config_line())
-        .text_size(px(12.0))
-        .text_color(move || theme().muted_foreground)
-}
-
 fn policy_row() -> impl IntoElement {
     view()
         .flex_row()
         .items_center()
         .justify_between()
-        .child(text("Link policy").text_size(px(13.0)))
+        .child(
+            text("Link policy")
+                .text_size(px(13.0))
+                .text_color(move || theme().muted_foreground),
+        )
         .child(
             text("Auto")
                 .text_size(px(13.0))
@@ -149,8 +156,8 @@ fn primary_button(
         .items_center()
         .justify_center()
         .px_5()
-        .py_3()
-        .rounded(px(10.0))
+        .py_4()
+        .rounded(px(12.0))
         .bg(move || {
             if snap.get().primary_enabled() {
                 theme().primary
@@ -158,7 +165,7 @@ fn primary_button(
                 theme().muted
             }
         })
-        .active(|s| s.opacity(0.7))
+        .active(|s| s.opacity(0.75))
         .on_press(move || {
             if snap_press.get().primary_enabled() {
                 let mut plane = plane.borrow_mut();
@@ -167,108 +174,106 @@ fn primary_button(
         })
         .child(
             text(move || snap.get().primary_label().to_owned())
-                .text_size(px(16.0))
-                .font_weight(FontWeight::MEDIUM)
+                .text_size(px(17.0))
+                .font_weight(FontWeight::SEMIBOLD)
                 .text_color(move || theme().primary_foreground),
         )
 }
 
-fn load_saved_button(snap: &Signal<Snapshot>) -> impl IntoElement {
-    let snap = snap.clone();
-    view()
-        .w_full()
-        .items_center()
-        .justify_center()
-        .px_4()
-        .py_2()
-        .rounded(px(8.0))
-        .border_1()
-        .border_color(move || theme().border)
-        .active(|s| s.opacity(0.7))
-        .on_press(move || snap.update(|s| s.load_saved_profile()))
-        .child(
-            text("Load saved profile")
-                .text_size(px(13.0))
-                .text_color(move || theme().foreground),
-        )
-}
-
-fn load_demo_button(snap: &Signal<Snapshot>) -> impl IntoElement {
-    let snap = snap.clone();
-    view()
-        .w_full()
-        .items_center()
-        .justify_center()
-        .px_4()
-        .py_2()
-        .rounded(px(8.0))
-        .border_1()
-        .border_color(move || theme().border)
-        .active(|s| s.opacity(0.7))
-        .on_press(move || snap.update(|s| s.load_demo_profile()))
-        .child(
-            text("Load demo profile")
-                .text_size(px(13.0))
-                .text_color(move || theme().foreground),
-        )
-}
-
-fn secondary_row(
+fn more_section(
     snap: &Signal<Snapshot>,
     plane: &Rc<RefCell<Box<dyn DataPlane>>>,
 ) -> impl IntoElement {
-    let snap_refresh = snap.clone();
-    let snap_btn = snap.clone();
-    let snap_banner = snap.clone();
-    let plane_refresh = Rc::clone(plane);
+    let snap = snap.clone();
     let plane = Rc::clone(plane);
+    let mock = use_mock_plane();
     view()
         .flex_col()
         .gap_2()
+        .w_full()
+        .pt_2()
         .child(
-            view()
-                .w_full()
-                .items_center()
-                .justify_center()
-                .px_4()
-                .py_2()
-                .rounded(px(8.0))
-                .border_1()
-                .border_color(move || theme().border)
-                .active(|s| s.opacity(0.7))
-                .on_press(move || {
-                    let mut plane = plane_refresh.borrow_mut();
-                    snap_refresh.update(|s| s.tick(plane.as_mut()));
-                })
-                .child(
-                    text("Refresh status")
-                        .text_size(px(13.0))
-                        .text_color(move || theme().foreground),
-                ),
+            text("More")
+                .text_size(px(11.0))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(move || theme().muted_foreground),
         )
-        .child(
-            view()
-                .w_full()
-                .items_center()
-                .justify_center()
-                .px_4()
-                .py_2()
-                .rounded(px(8.0))
-                .border_1()
-                .border_color(move || theme().border)
-                .active(|s| s.opacity(0.7))
-                .on_press(move || {
+        .child(config_status(&snap))
+        .child(quiet_button("Load saved profile", {
+            let snap = snap.clone();
+            move || snap.update(|s| s.load_saved_profile())
+        }))
+        .child(quiet_button("Load demo profile", {
+            let snap = snap.clone();
+            move || snap.update(|s| s.load_demo_profile())
+        }))
+        .child(refresh_button(&snap, &plane))
+        .child(diag_controls(&snap))
+        .when(mock, |row| {
+            row.child(quiet_button("Simulate path failure", {
+                let snap = snap.clone();
+                let plane = Rc::clone(&plane);
+                move || {
                     let mut plane = plane.borrow_mut();
                     let _ = plane.stop();
-                    snap_btn.update(|s| s.simulate_path_failure());
-                })
-                .child(
-                    text("Simulate path failure")
-                        .text_size(px(13.0))
-                        .text_color(move || theme().foreground),
-                ),
+                    snap.update(|s| s.simulate_path_failure());
+                }
+            }))
+        })
+}
+
+fn config_status(snap: &Signal<Snapshot>) -> impl IntoElement {
+    let snap = snap.clone();
+    text(move || snap.get().config_line())
+        .text_size(px(11.0))
+        .text_color(move || theme().muted_foreground)
+}
+
+fn quiet_button(label: &'static str, on_press: impl Fn() + 'static) -> impl IntoElement {
+    view()
+        .w_full()
+        .items_center()
+        .justify_center()
+        .px_3()
+        .py_2()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(move || theme().border)
+        .active(|s| s.opacity(0.7))
+        .on_press(on_press)
+        .child(
+            text(label)
+                .text_size(px(12.0))
+                .text_color(move || theme().foreground),
         )
-        .child(fail_banner(&snap_banner))
+}
+
+fn refresh_button(
+    snap: &Signal<Snapshot>,
+    plane: &Rc<RefCell<Box<dyn DataPlane>>>,
+) -> impl IntoElement {
+    let snap = snap.clone();
+    let plane = Rc::clone(plane);
+    quiet_button("Refresh status", move || {
+        let mut plane = plane.borrow_mut();
+        snap.update(|s| s.tick(plane.as_mut()));
+    })
+}
+
+fn diag_controls(snap: &Signal<Snapshot>) -> impl IntoElement {
+    let snap_btn = snap.clone();
+    let snap_line = snap.clone();
+    view()
+        .flex_col()
+        .gap_1()
+        .child(quiet_button("Run diagnostics", move || {
+            snap_btn.update(|s| s.run_diagnostics())
+        }))
+        .child(
+            text(move || snap_line.get().diag_copy())
+                .text_size(px(11.0))
+                .text_color(move || theme().muted_foreground),
+        )
 }
 
 fn fail_banner(snap: &Signal<Snapshot>) -> impl IntoElement {
@@ -278,37 +283,6 @@ fn fail_banner(snap: &Signal<Snapshot>) -> impl IntoElement {
             .text_size(px(12.0))
             .text_color(move || theme().destructive),
     )
-}
-
-fn diag_row(snap: &Signal<Snapshot>) -> impl IntoElement {
-    let snap_btn = snap.clone();
-    let snap_line = snap.clone();
-    view()
-        .flex_col()
-        .gap_2()
-        .child(
-            view()
-                .w_full()
-                .items_center()
-                .justify_center()
-                .px_4()
-                .py_2()
-                .rounded(px(8.0))
-                .border_1()
-                .border_color(move || theme().border)
-                .active(|s| s.opacity(0.7))
-                .on_press(move || snap_btn.update(|s| s.run_diagnostics()))
-                .child(
-                    text("Run diagnostics")
-                        .text_size(px(13.0))
-                        .text_color(move || theme().foreground),
-                ),
-        )
-        .child(
-            text(move || snap_line.get().diag_copy())
-                .text_size(px(12.0))
-                .text_color(move || theme().muted_foreground),
-        )
 }
 
 fn footer(snap: &Signal<Snapshot>) -> impl IntoElement {
