@@ -216,12 +216,35 @@ fn secondary_row(
     snap: &Signal<Snapshot>,
     plane: &Rc<RefCell<Box<dyn DataPlane>>>,
 ) -> impl IntoElement {
+    let snap_refresh = snap.clone();
     let snap_btn = snap.clone();
     let snap_banner = snap.clone();
+    let plane_refresh = Rc::clone(plane);
     let plane = Rc::clone(plane);
     view()
         .flex_col()
         .gap_2()
+        .child(
+            view()
+                .w_full()
+                .items_center()
+                .justify_center()
+                .px_4()
+                .py_2()
+                .rounded(px(8.0))
+                .border_1()
+                .border_color(move || theme().border)
+                .active(|s| s.opacity(0.7))
+                .on_press(move || {
+                    let mut plane = plane_refresh.borrow_mut();
+                    snap_refresh.update(|s| s.tick(plane.as_mut()));
+                })
+                .child(
+                    text("Refresh status")
+                        .text_size(px(13.0))
+                        .text_color(move || theme().foreground),
+                ),
+        )
         .child(
             view()
                 .w_full()

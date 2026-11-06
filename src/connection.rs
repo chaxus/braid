@@ -297,6 +297,21 @@ impl Snapshot {
         }
     }
 
+    /// Refresh helper ping and detect a dead core while Connected.
+    pub fn tick(&mut self, plane: &mut dyn DataPlane) {
+        if !self.mock_plane {
+            self.helper_online = crate::runtime::SingBoxPlane::helper_reachable();
+        }
+        if self.phase == Phase::Connected && plane.poll() != PlaneStatus::Up {
+            self.phase = Phase::Failed;
+            self.fail = Some(FailReason::Process);
+            self.fail_detail = Some("core exited while connected".into());
+            self.latency_ms = None;
+            self.egress_ip = None;
+            let _ = plane.stop();
+        }
+    }
+
     pub fn simulate_path_failure(&mut self) {
         self.phase = Phase::Failed;
         self.fail = Some(FailReason::Path);
@@ -379,6 +394,20 @@ mod tests {
         assert_eq!(s.egress_ip.as_deref(), Some("203.0.113.10"));
         s.toggle_primary(&mut plane);
         assert_eq!(s.phase, Phase::Idle);
+    }
+
+    #[test]
+    fn tick_detects_dead_core() {
+        let mut s = Snapshot::default();
+        s.load_demo_profile();
+        let mut plane = MockPlane::default();
+        s.connect_with(&mut plane);
+        assert_eq!(s.phase, Phase::Connected);
+        plane.stop().unwrap();
+        s.tick(&mut plane);
+        assert_eq!(s.phase, Phase::Failed);
+        assert_eq!(s.fail, Some(FailReason::Process));
+        assert!(s.fail_detail.as_deref().unwrap().contains("exited"));
     }
 
     #[test]
