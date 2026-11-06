@@ -59,6 +59,7 @@ pub fn App() -> impl IntoElement {
                 .child(load_saved_button(&snap))
                 .child(load_demo_button(&snap))
                 .child(secondary_row(&snap, &plane))
+                .child(diag_row(&snap))
                 .child(footer(&snap)),
         )
 }
@@ -277,6 +278,37 @@ fn fail_banner(snap: &Signal<Snapshot>) -> impl IntoElement {
             .text_size(px(12.0))
             .text_color(move || theme().destructive),
     )
+}
+
+fn diag_row(snap: &Signal<Snapshot>) -> impl IntoElement {
+    let snap_btn = snap.clone();
+    let snap_line = snap.clone();
+    view()
+        .flex_col()
+        .gap_2()
+        .child(
+            view()
+                .w_full()
+                .items_center()
+                .justify_center()
+                .px_4()
+                .py_2()
+                .rounded(px(8.0))
+                .border_1()
+                .border_color(move || theme().border)
+                .active(|s| s.opacity(0.7))
+                .on_press(move || snap_btn.update(|s| s.run_diagnostics()))
+                .child(
+                    text("Run diagnostics")
+                        .text_size(px(13.0))
+                        .text_color(move || theme().foreground),
+                ),
+        )
+        .child(
+            text(move || snap_line.get().diag_copy())
+                .text_size(px(12.0))
+                .text_color(move || theme().muted_foreground),
+        )
 }
 
 fn footer(snap: &Signal<Snapshot>) -> impl IntoElement {

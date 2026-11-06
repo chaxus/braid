@@ -29,3 +29,12 @@ test("shows path failure copy", async () => {
   );
   expect(app.texts()).toContain("Failed");
 });
+
+test("run diagnostics shows mock copy", async () => {
+  const app = await open(".");
+  expect(app.texts()).toContain("Run diagnostics");
+  await app.press("Run diagnostics");
+  expect(
+    app.texts().some((t: string) => t.includes("Local OK · path OK (mock)")),
+  ).toBe(true);
+});

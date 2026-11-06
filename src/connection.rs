@@ -1,6 +1,6 @@
 //! Connection state machine — drives a [`DataPlane`] (TECH_PLAN §3.3 / §4).
 
-use crate::probe::{classify_path, tcp_rtt_ms, PathClass};
+use crate::probe::{classify_path, classify_with, local_reachable, tcp_reachable, tcp_rtt_ms, PathClass};
 use crate::profile::Profile;
 use crate::runtime::{DataPlane, FailKind, PlaneError, PlaneStatus};
 use crate::singbox::render_singbox_pretty;
@@ -46,6 +46,8 @@ pub struct Snapshot {
     pub config_bytes: usize,
     pub server: Option<String>,
     pub profile: Option<Profile>,
+    /// Latest human-readable diagnostics line (not necessarily a failure).
+    pub diag_line: Option<String>,
 }
 
 impl Default for Snapshot {
@@ -63,6 +65,7 @@ impl Default for Snapshot {
             config_bytes: 0,
             server: None,
             profile: None,
+            diag_line: None,
         }
     }
 }
@@ -312,6 +315,40 @@ impl Snapshot {
         }
     }
 
+    /// One-line path diagnostics (mock stays offline-safe).
+    pub fn run_diagnostics(&mut self) {
+        if self.mock_plane {
+            self.diag_line = Some("Local OK · path OK (mock)".into());
+            return;
+        }
+        let Some(profile) = self.profile.as_ref() else {
+            self.diag_line = Some("Load a profile before running diagnostics.".into());
+            return;
+        };
+        let local = local_reachable(PATH_PROBE_TIMEOUT);
+        let remote = tcp_reachable(&profile.server, profile.port, PATH_PROBE_TIMEOUT);
+        let class = classify_with(local, remote);
+        let rtt = if remote {
+            tcp_rtt_ms(&profile.server, profile.port, PATH_PROBE_TIMEOUT)
+                .map(|ms| format!("{ms} ms"))
+                .unwrap_or_else(|| "—".into())
+        } else {
+            "—".into()
+        };
+        self.diag_line = Some(match class {
+            PathClass::Ok => format!("Local OK · path OK · RTT {rtt}"),
+            PathClass::Path => format!(
+                "Local OK · path down · {}:{}",
+                profile.server, profile.port
+            ),
+            PathClass::LocalDown => "Local network down · path not checked".into(),
+        });
+    }
+
+    pub fn diag_copy(&self) -> String {
+        self.diag_line.clone().unwrap_or_default()
+    }
+
     pub fn simulate_path_failure(&mut self) {
         self.phase = Phase::Failed;
         self.fail = Some(FailReason::Path);
@@ -408,6 +445,13 @@ mod tests {
         assert_eq!(s.phase, Phase::Failed);
         assert_eq!(s.fail, Some(FailReason::Process));
         assert!(s.fail_detail.as_deref().unwrap().contains("exited"));
+    }
+
+    #[test]
+    fn mock_diagnostics_line() {
+        let mut s = Snapshot::default();
+        s.run_diagnostics();
+        assert_eq!(s.diag_copy(), "Local OK · path OK (mock)");
     }
 
     #[test]
