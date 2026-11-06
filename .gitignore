@@ -5,7 +5,6 @@
 *.key
 aws_credentials.conf
 secrets/
-
 # Dependencies & build
 node_modules/
 .target/
@@ -13,17 +12,15 @@ dist/
 build/
 .nsh/
 *.app
-
 # OS / editor
 .DS_Store
 .idea/
 .vscode/
 *.swp
-
 # Python
 __pycache__/
 *.pyc
 .venv/
-
 # Logs
 *.log
+target/

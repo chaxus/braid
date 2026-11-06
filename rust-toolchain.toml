@@ -1,0 +1,4 @@
+# nsh-core 0.4.0 uses nightly-only features (if-let guards, isolate_lowest_one).
+[toolchain]
+channel = "nightly"
+components = ["rustfmt", "clippy"]

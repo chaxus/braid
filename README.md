@@ -1,20 +1,43 @@
 # Braid
 
-A personal cross-platform proxy client with **TUN** as the primary path.
+Personal **TUN-first** proxy client. UI: [Native Shell (NSH)](https://nsh.dev). Data plane (later): sing-box.
 
-- **UI**: [Native Shell (NSH)](https://nsh.dev)
-- **Data plane**: sing-box (planned)
-- **First target**: macOS menu-bar app; Android / iOS later from the same UI model
-
-Braid is intentionally a **clean, separate** project from server-side deployment tooling. No production credentials or host inventory belong in this repository.
+Mac first; Android / iOS later from the same app model. This repository stays clean — no production hosts or secrets.
 
 ## Status
 
-Scaffold only. Product direction:
+**P1 (current):** macOS panel UI + mock connection state machine. Labelled `TUN · simulated (P1)` so it is never mistaken for a live tunnel.
 
-1. One primary action: connect / disconnect (TUN)
-2. Dual-link aware UX (stealth vs speed) without exposing kernel config by default
-3. Clear failure copy (path vs server), not a settings dump
+| Phase | Deliverable |
+|---|---|
+| P1 | NSH shell, connect UI, mock state |
+| P2 | Profile import + sing-box config generation |
+| P3 | Real macOS TUN |
+| P4 | Dual-link auto + diagnostics copy |
+
+See [docs/SPEC.md](docs/SPEC.md) and [docs/SCOPE_LOCK.md](docs/SCOPE_LOCK.md).
+
+## Requirements
+
+- macOS 14+
+- [nsh](https://nsh.dev/docs/installation) 0.4+ (`curl -fsSL https://nsh.dev/install.sh | sh`)
+- Rust **nightly** (pinned in `rust-toolchain.toml`; nsh-core 0.4 needs it)
+
+## Run
+
+```bash
+export PATH="$HOME/.nsh/bin:$PATH"
+nsh run --target macos
+# or:
+cargo run
+```
+
+## Test
+
+```bash
+cargo test --lib
+nsh test
+```
 
 ## License
 

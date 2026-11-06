@@ -1,0 +1,8 @@
+{
+  "name": "Braid",
+  "id": "com.chaxus.braid",
+  "version": "0.1.0",
+  "build": 1,
+  "rust": ".",
+  "root": "App"
+}
