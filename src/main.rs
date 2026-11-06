@@ -19,7 +19,7 @@ fn main() -> impl std::process::Termination {
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             app_id: "com.chaxus.braid".to_owned(),
             // Compact panel — closer to a menu-bar popover than a document window.
-            size: (340, 480),
+            size: (320, 420),
             ..Default::default()
         },
     )

@@ -156,8 +156,8 @@ fn primary_button(
         .items_center()
         .justify_center()
         .px_5()
-        .py_4()
-        .rounded(px(12.0))
+        .py_5()
+        .rounded(px(14.0))
         .bg(move || {
             if snap.get().primary_enabled() {
                 theme().primary
@@ -165,7 +165,14 @@ fn primary_button(
                 theme().muted
             }
         })
-        .active(|s| s.opacity(0.75))
+        .opacity(move || {
+            if snap.get().phase == Phase::Connecting || snap.get().phase == Phase::Disconnecting {
+                0.85
+            } else {
+                1.0
+            }
+        })
+        .active(|s| s.opacity(0.72))
         .on_press(move || {
             if snap_press.get().primary_enabled() {
                 let mut plane = plane.borrow_mut();
@@ -174,9 +181,15 @@ fn primary_button(
         })
         .child(
             text(move || snap.get().primary_label().to_owned())
-                .text_size(px(17.0))
+                .text_size(px(18.0))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(move || theme().primary_foreground),
+                .text_color(move || {
+                    if snap.get().primary_enabled() {
+                        theme().primary_foreground
+                    } else {
+                        theme().muted_foreground
+                    }
+                }),
         )
 }
 

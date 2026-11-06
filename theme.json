@@ -1,0 +1,49 @@
+{
+  "name": "Braid",
+  "cssVars": {
+    "theme": {
+      "radius": "0.75rem",
+      "font-sans": "\"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+    },
+    "light": {
+      "background": "oklch(0.975 0.008 220)",
+      "foreground": "oklch(0.22 0.02 220)",
+      "card": "oklch(0.99 0.004 220)",
+      "card-foreground": "oklch(0.22 0.02 220)",
+      "popover": "oklch(0.99 0.004 220)",
+      "popover-foreground": "oklch(0.22 0.02 220)",
+      "primary": "oklch(0.38 0.055 195)",
+      "primary-foreground": "oklch(0.98 0.01 195)",
+      "secondary": "oklch(0.94 0.012 220)",
+      "secondary-foreground": "oklch(0.28 0.02 220)",
+      "muted": "oklch(0.94 0.01 220)",
+      "muted-foreground": "oklch(0.48 0.02 220)",
+      "accent": "oklch(0.93 0.015 195)",
+      "accent-foreground": "oklch(0.28 0.03 195)",
+      "destructive": "oklch(0.55 0.18 25)",
+      "border": "oklch(0.88 0.012 220)",
+      "input": "oklch(0.88 0.012 220)",
+      "ring": "oklch(0.38 0.055 195)"
+    },
+    "dark": {
+      "background": "oklch(0.18 0.015 220)",
+      "foreground": "oklch(0.95 0.01 220)",
+      "card": "oklch(0.22 0.015 220)",
+      "card-foreground": "oklch(0.95 0.01 220)",
+      "popover": "oklch(0.22 0.015 220)",
+      "popover-foreground": "oklch(0.95 0.01 220)",
+      "primary": "oklch(0.72 0.06 195)",
+      "primary-foreground": "oklch(0.18 0.02 195)",
+      "secondary": "oklch(0.28 0.02 220)",
+      "secondary-foreground": "oklch(0.92 0.01 220)",
+      "muted": "oklch(0.26 0.015 220)",
+      "muted-foreground": "oklch(0.7 0.015 220)",
+      "accent": "oklch(0.3 0.025 195)",
+      "accent-foreground": "oklch(0.92 0.01 195)",
+      "destructive": "oklch(0.65 0.18 25)",
+      "border": "oklch(0.32 0.015 220)",
+      "input": "oklch(0.32 0.015 220)",
+      "ring": "oklch(0.72 0.06 195)"
+    }
+  }
+}
